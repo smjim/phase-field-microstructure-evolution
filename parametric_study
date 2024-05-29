@@ -1,0 +1,14 @@
+Vary grad_coeff_phi : 1.0, 1.5, 2.0, 2.5
+     grad_coeff_c : 1.0, 1.5, 2.0, 2.5
+     d_gb: 5.0, 10.0, 20.0, 30.0, 100.0
+     mob_phi: d_gb/2.0
+     sigma_1 : 2.0 -6.0
+     sigma_2 : 2.0-4.0
+     ap: 2.0 -5.0
+     con_0_mat: 0.1-0.5
+     con_0_ppt: 0.5-0.8 (always keep con_0_mat < con_0_ppt)
+
+vary: start  = 'circle' or 'plane' (or maybe also 'polycrystal')
+     In the case of 'plane' the number of precipitates (num_ppt) is always taken as two.
+
+

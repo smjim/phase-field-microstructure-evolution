@@ -1,0 +1,4 @@
+*.o *.x 
+output/* 
+error/* 
+step_*

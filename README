@@ -1,0 +1,10 @@
+This directory contains all the source files and the executable.
+The code takes in an initial structure consisting of grain boundaries and particles and simulates the spreading of the particle along the grain boundaries.
+
+run source ./load_modules
+
+This will load the Intel Programing environment and the mpi required for running P3dFFT (Discrete Fourier Spectral Code) and FFTW3 which it uses at the front end. Both are included in the Makefile
+
+I have already created the executable so you don't have to do anything.
+
+You will be conducting a parametric study of the effect of certain input parameters on the spreading of the grain boundary phase and visualizing the results using Paraview.

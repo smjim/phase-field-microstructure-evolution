@@ -1,0 +1,4 @@
+module purge
+module load PrgEnv-intel
+module load fftw/3.3.10-intel-oneapi-mpi-intel
+
