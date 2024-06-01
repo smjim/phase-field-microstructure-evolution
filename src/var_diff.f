@@ -23,7 +23,8 @@
       real *8 c_max, c_max_glob, phi_max, phi_max_glob
       real *8  ran_2, phi_min, phi_min_glob, phi_sq
       real *8  mob_min, mob_max, min_glob, max_glob
-      character start*10, file_num*4, dir_name*12, output_dir*30
+      character start*10, file_num*4, dir_name*256 
+      character input_file_path*256, output_dir*256
 
       real *8, dimension(:,:), allocatable :: gamma
       real *8, dimension(:,:,:),  allocatable :: con
@@ -66,15 +67,25 @@
       double complex  k_sq, k_4, kf_sum
       complex(p3dfft_type) term11, term22 , term33, term44
 
-!     Output Directory Specification
-      call get_command_argument(1, output_dir, status=ierr)
-      if (ierr/=0) then
-        print *, 'Usage: var_diff.x <output_dir>'
-        stop 1
-      end if
+      ! Input filename specification
+      call get_command_argument(1, input_file_path, status=ierr)
+!      if (ierr /= 0) then
+!        print *, 'Error: Missing input file path.'
+!        print *, 'Usage: var_diff.x <input_file_path> <output_dir>'
+!        stop 1
+!      end if
+    
+      ! Output directory specification
+      call get_command_argument(2, output_dir, status=ierr)
+!      if (ierr /= 0) then
+!        print *, 'Error: Missing output directory.'
+!        print *, 'Usage: var_diff.x <input_file_path> <output_dir>'
+!        stop 1
+!      end if     
 
       open(93,file=trim(output_dir)//'time_step.dat')
-      write(93, '(A)') "# step number, time elapsed, run time elapsed" 
+      write(93, '(A)') "# step number, iteration duration, &
+                              run time elapsed" 
 
       open(97,file=trim(output_dir)//'gamma_matrix.dat')
 
@@ -89,7 +100,7 @@
       call MPI_Comm_size(MPI_COMM_WORLD, nprocs, ierr)
 
 !     Read data from input file
-      open(2, file='input', status='old')
+      open(2, file=input_file_path, status='old')
 
       read(2,*) nrun
       read(2,*) ppt_rad(1), ppt_rad(2), ppt_rad(3), N_step, ifreq
@@ -451,7 +462,7 @@
       c_min = 10.0
 
 !     Calculate the total system energy
-!     First gradient energy due to phi gradeints
+!     First gradient energy due to phi gradients
 
       DO ivar = 1, var
 
@@ -499,7 +510,7 @@
       do i = ist(1), ien(1)
 
       f_int = f_int + 0.5* grad_coeff_phi *  &
-                     (grad_x(ivar,i,j,k)**2 + &
+                     (grad_x(ivar,i,j,k)**2 + & 
                      grad_y(ivar,i,j,k)**2 + grad_z(ivar,i,j,k)**2)
       end do
       end do
@@ -860,18 +871,20 @@
               MPI_MAX, 0, MPI_COMM_WORLD, ierr)
 
       if(mod(step,ifreq).eq.0) then
-        write(dir_name,'(a5,i7.7)') 'step_',step
-        !write(dir_name,'(A, "step_", I7.7, ".dat")') trim(output_dir),step
+
+        write(dir_name,'(A, a5,i7.7)') trim(output_dir),'step_',step
+        !write(dir_name,'(a5,i7.7)') 'step_',step
+
         if(myid.eq.0) then
-        call system('mkdir -p '//dir_name)
-          open(9,file=dir_name//'/data_extract_mult.in')
+        call system('mkdir -p '//trim(dir_name))
+          open(9,file=trim(dir_name)//'/data_extract_mult.in')
           write(9,*) Nx, Ny, Nz, nprocs, var
           write(9,*) dims
           close(9)
         end if
         call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-        open (4, file=dir_name//'/data_save.'//file_num, &
+        open (4, file=trim(dir_name)//'/data_save.'//file_num, &
               form='unformatted')
         rewind(4)
         write(4) ist, ien

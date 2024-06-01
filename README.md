@@ -1,2 +1,2 @@
 # phase-field-microstructure-evolution
-Phase field simulation of microstrucutre evolution
+Phase field simulation of microstructure evolution

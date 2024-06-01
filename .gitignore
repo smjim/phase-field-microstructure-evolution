@@ -1,4 +1,8 @@
 *.o *.x 
 output/* 
 error/* 
-step_*
+
+src/*.o
+src/*.x
+
+tests/__pycache__

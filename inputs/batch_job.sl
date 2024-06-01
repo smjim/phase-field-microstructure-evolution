@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --job-name=phase_field_microstructure_sim
-#SBATCH --output=output/output.o%j 
-#SBATCH --error=error/error.o%j 
+#SBATCH --output=../output/output.o%j 
+#SBATCH --error=../error/error.o%j 
 #SBATCH --ntasks=16
 #SBATCH --account=ccpcmornl
 #SBATCH --qos=high
@@ -16,5 +16,4 @@
 module purge
 module load PrgEnv-intel
 module load fftw/3.3.10-intel-oneapi-mpi-intel
-srun $SRUNOPTS ./var_diff.x output/ > output/mrun.out
-
+srun $SRUNOPTS ../src/var_diff.x ../output/ > ../output/mrun.out
