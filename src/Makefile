@@ -29,5 +29,11 @@ var_diff.o : var_diff.f
 ran_2.o : ran_2.f 
 	$(FC) $(FFLAGS) -c ran_2.f $(FFTW) $(P3DFFT) $(LINPLIB)
 
+paraview.x : paraview.o $(OBJECTS)
+	$(FC) -o $@ $(FFLAGS) paraview.o $(OBJECTS) $(LINPLIB) $(P3DFFT) $(FFTW)
+
+paraview.o : paraview.f
+	$(FC) $(FFLAGS) -c paraview.f $(FFTW) $(P3DFFT) $(LINPLIB)
+
 clean:
-	rm *.o var_diff.x 
+	rm *.o var_diff.x paraview.x
