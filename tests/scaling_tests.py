@@ -1,4 +1,5 @@
-from datetime import datetime, date
+from datetime import date
+import yaml
 import time
 import numpy as np
 import csv
@@ -6,6 +7,11 @@ import os
 
 from run_phase_sim import *
 from plot_display import *
+
+def load_config(yaml_file):
+    with open(yaml_file, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
 
 def save_output(config, sim_path, summary_file):
     duration = analyze_phase_sim_output(sim_path) 
@@ -24,12 +30,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run Phase Field simulation for given parameter combination")
+    parser.add_argument("-i ", "--input_params", nargs='?', default='../inputs/config.yaml', help="input .yaml file for parameter combinations to be tested")
     parser.add_argument("-o ", "--output_dir", nargs='?', default=None, help="output directory for tests and summary file")
+    parser.add_argument("--test_type", type=str, choices=['strong_test', 'weak_test'], required=False, help="Time limit for jobs to run")
     parser.add_argument("--time", default="1:00:00", help="Time limit for jobs to run")
 
     args = parser.parse_args()
     max_runtime = args.time
-    
+
     if args.output_dir is not None:
         output_dir = args.output_dir
     else:
@@ -42,41 +50,14 @@ if __name__ == "__main__":
     # ---------------------------
     # Step 1: Define parameter set
     # ---------------------------
-    # Baseline configuration
-    baseline_config = {
-        "N_step": 10000,
-        "ifreq": 1000,
-        "Nx": 96,
-        "Ny": 96,
-        "Nz": 96,
-        "t_step": 1.e-4,
-        "dims": [4, 4],
-        "start": 'circle',
-        "grad_coeff_phi": 1.0,
-        "grad_coeff_c": 1.0,
-        "d_bulk": 1.0,
-        "d_gb": 10.0,
-        "mob_phi": 5.0,
-        "sigma_1": 0.6919,
-        "sigma_2": 1.02,
-        "am": 0.5,
-        "ap": 2.0,
-        "con_0_mat": 0.3,
-        "con_0_ppt": 0.7,
-        "gb_force": 0.0,
-        "max_runtime": '1:00:00'
-    }
+    config = load_config(args.input_params)
+    baseline_config = config['baseline_config']
 
-    # Parameter swaps
-    parameter_swaps = [ # Strong scaling test
-       {"dims": [1, 1], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [1, 2], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [2, 2], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [2, 4], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [4, 4], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [4, 8], "Nx": 96, "Ny": 96, "Nz": 96},
-       {"dims": [8, 8], "Nx": 96, "Ny": 96, "Nz": 96},
-    ]
+    # Choose parameter set
+    if args.test_type is not None:
+        parameter_swaps = config[args.test_type]    # Specify via command line
+    else:
+        parameter_swaps = config['weak_test']       # Manually specify
     
     # Generate configuration list with parameter swaps applied to baseline
     config_list = []
@@ -108,7 +89,7 @@ if __name__ == "__main__":
     # Save submitted jobs to job id dict for analysis upon completion
     for i, config in enumerate(config_list):
         # Run simulation, save duration data
-        sim_path, jobid = run_phase_sim(output_dir, config)
+        sim_path, jobid = run_phase_sim(output_dir, config, max_runtime)
         if jobid is not None:
             job_dict[jobid] = {'config': config, 'sim_path':sim_path}
         else:   # simulation has already been run, analyze output
@@ -120,15 +101,19 @@ if __name__ == "__main__":
     # Track which jobs are completed
     while job_dict:
         completed_jobs = []
-        print(f'Checking job status {datetime.now().strftime("%H:%M:%S")}')
+
+        # Boolean array of completion status
+        job_status = check_job_status(list(job_dict.keys()))
+
         for job_id, job_info in job_dict.items():
-            if check_job_status(job_id):
+            if job_id in job_status:
                 # job is complete, analyze the output
                 save_output(job_info['config'], job_info['sim_path'], summary_file)
+                completed_jobs.append(job_id)  # Add completed job to the list        
 
         # Remove completed jobs from the dictionary
         for job_id in completed_jobs:
             del job_dict[job_id]
 
         # Check again after some break
-        time.sleep(60)
+        time.sleep(30)

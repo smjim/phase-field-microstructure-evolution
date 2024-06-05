@@ -471,6 +471,9 @@
                   dft_dummy(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+! ===============================
+      !$omp parallel do private(i, j, k) &
+      !$omp& shared(ivar, dft_dummy, kf, dft_grad_x, dft_grad_y, dft_grad_z)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -482,6 +485,8 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       dft_dummy(:,:,:) = dft_grad_x(ivar,:,:,:)
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
@@ -505,6 +510,10 @@
       f_int = 0.d0
       DO  ivar=1,var
 
+! ===============================
+      !$omp parallel do private(i, j, k) &
+      !$omp& shared(ivar, grad_coeff_phi, grad_x, grad_y, grad_z) &
+      !$omp& reduction(+:f_int)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -515,11 +524,16 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       END DO
 
 !     Next, gradient energy due to concentration gradients
 
+! ===============================
+      !$omp parallel do private(i, j, k) &
+      !$omp& shared(dft_grad_x_c, dft_grad_y_c, dft_grad_z_c, dft_con, kf) 
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -531,11 +545,17 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       call inv_trans(dft_grad_x_c, grad_x_c, ist, ien, fst, fen)
       call inv_trans(dft_grad_y_c, grad_y_c, ist, ien, fst, fen)
       call inv_trans(dft_grad_z_c, grad_z_c, ist, ien, fst, fen)
 
+! ===============================
+      !$omp parallel do private(i, j, k) &
+      !$omp& shared(grad_coeff_c, grad_x_c, grad_y_c, grad_z_c) &
+      !$omp& reduction(+:f_int)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -546,6 +566,8 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
 !     Total system chemical energy consisting of matrix grains and
 !     precipitate
@@ -554,6 +576,10 @@
 
       f_eta = 0.d0
 
+! ===============================
+      !$omp parallel do collapse(3) private(i, j, k, ivar, jvar, fi_i, fi_, gb_enj) &
+      !$omp& shared(grad_coeff_c, grad_x_c, grad_y_c, grad_z_c) &
+      !$omp& reduction(+:f_eta)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -579,9 +605,15 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       f_ch = 0.0
 
+! ===============================
+      !$omp parallel do private(i, j, k, num_ijk, den_ijk, con_ijk, phi_mat, phi_ppt, fch_mat, fch_ppt) &
+      !$omp& shared(df_dc) &
+      !$omp& reduction(+:f_ch)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -604,6 +636,8 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
 !    Calculate the gradients of the total energy with respect to phi and
 !    c required for solving the evolution equations
@@ -614,6 +648,9 @@
       term2 = 0.d0
       term1 = 0.0
 
+! ===============================
+      !$omp parallel do collapse(3) private(i,j,k,ivar,jvar,fi_i,fi_j,gb_en) &
+      !$omp& shared (term1, term2, phi)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -641,9 +678,16 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
 
 !     calculating term4 and term5
+
+! ===============================
+      !$omp parallel do collapse(3) &
+      !$omp& private(i,j,k,ivar,con_ijk,den_ijk,fch_mat,fch_ppt) &
+      !$omp& shared (term1, term2, phi)
 
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
@@ -666,7 +710,12 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
+! ===============================
+      !$omp parallel do collapse(4) private(i, j, k, ivar) &
+      !$omp& shared (term1, term2, term4, df_dphi)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -680,12 +729,17 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       call f_trans(con, dft_con, Nx, Ny, Nz, ist, ien, fst, fen)
       call f_trans(df_dc, dft_df_dc, Nx, Ny, Nz, ist, ien, fst, fen)
 
 !     Set up position-dependent diffusion coefficients
 
+! ===============================
+      !$omp parallel do collapse(3) private(i, j, k, ivar, phi_sum, fi) &
+      !$omp& shared(phi, mob_c, D_bulk, D_gb)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -711,12 +765,17 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
 !     D_mean = (D_bulk + D_gb) / 2.0
       D_mean = D_bulk
 
 !     Set up additional terms in Fourier space due to variable mobility
 
+! ===============================
+      !$omp parallel do private(i, j, k, kf_sum, k_sq) &
+      !$omp& shared(dft_dummy, dft_df_dc, grad_coeff_c, dft_con, kf, kf_sq)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -728,9 +787,14 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       call inv_trans(dft_dummy, dummy, ist, ien, fst, fen)
 
+! ===============================
+      !$omp parallel do private(i, j, k) &
+      !$omp& shared(dummy, mob_c, D_mean)
       do k = ist(3), ien(3)
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
@@ -740,11 +804,16 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       call f_trans(dummy, dft_dummy, Nx, Ny, Nz, ist, ien, fst, fen)
 
 !     Solve C-H Equation in Fourier Space
 
+! ===============================
+      !$omp parallel do private (i, j, k, kf_sum, k_4, k_sq, term11, term22, term33) &
+      !$omp& shared(kf, kf_4, kf_sq, dft_dummy, dft_con, D_mean, t_step, grad_coeff_c, dft_df_dc)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -762,6 +831,8 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
       call inv_trans(dft_con, con, ist, ien, fst, fen)
 
@@ -778,6 +849,9 @@
                   dft_dummy2(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+! ===============================
+      !$omp parallel do private(i, j, j, k_sq, kf_sum, term11, term22) &
+      !$omp& shared(kf_sq, kf, mob_phi, t_step, dft_dummy2, grad_coeff_phi, dft_dummy)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -800,6 +874,8 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
 
 !     perfrom inverse transformation to get the new phi values
 !     This new phi which will be used in the Cahn-Hilliard equation
@@ -837,6 +913,9 @@
       phi_min = 1.0
       c_max = 0.0
       c_min = 1.0
+
+! This loop needs to be sequential in order to find minimum and maximum properly(?)
+! ===============================
       do k = ist(3), ien(3) 
       do j = ist(2), ien(2) 
       do i = ist(1), ien(1) 
@@ -860,6 +939,7 @@
       end do
       end do
       end do
+! ===============================
 
       call MPI_Reduce(c_min, c_min_glob, 1, MPI_DOUBLE_PRECISION, &
               MPI_MIN, 0, MPI_COMM_WORLD, ierr)

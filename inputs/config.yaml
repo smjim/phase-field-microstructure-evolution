@@ -1,0 +1,137 @@
+baseline_config:
+  N_step: 1000
+  ifreq: 1000
+  num_ppt: 50
+  Nx: 96
+  Ny: 96
+  Nz: 96
+  t_step: 1.e-4
+  dims: [4, 4]
+  start: 'circle'
+  grad_coeff_phi: 1.0
+  grad_coeff_c: 1.0
+  d_bulk: 1.0
+  d_gb: 10.0
+  mob_phi: 5.0
+  sigma_1: 0.6919
+  sigma_2: 1.02
+  am: 0.5
+  ap: 2.0
+  con_0_mat: 0.3
+  con_0_ppt: 0.7
+  gb_force: 0.0
+
+strong_test:
+  - dims: [1, 1]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [1, 2]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [2, 2]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [2, 4]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [4, 4]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [4, 8]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+  - dims: [8, 8]
+    Nx: 96
+    Ny: 96
+    Nz: 96
+
+weak_test:
+  - dims: [1, 1]
+    Nx: 64
+    Ny: 64
+    Nz: 64
+  - dims: [1, 2]
+    Nx: 80
+    Ny: 80
+    Nz: 80
+  - dims: [2, 2]
+    Nx: 102
+    Ny: 102
+    Nz: 102
+  - dims: [2, 4]
+    Nx: 128
+    Ny: 128
+    Nz: 128
+  - dims: [4, 4]
+    Nx: 160
+    Ny: 160
+    Nz: 160
+  - dims: [4, 8]
+    Nx: 200
+    Ny: 200
+    Nz: 200
+  - dims: [8, 8]
+    Nx: 256
+    Ny: 256
+    Nz: 256
+
+phi_coeff_test:
+  - grad_coeff_phi: 1.0
+  - grad_coeff_phi: 1.5
+  - grad_coeff_phi: 2.0
+  - grad_coeff_phi: 2.5
+
+c_coeff_test:
+  - grad_coeff_c: 1.0
+  - grad_coeff_c: 1.5
+  - grad_coeff_c: 2.0
+  - grad_coeff_c: 2.5
+
+d_gb_test:
+  - d_gb: 5.0
+    mob_phi: 2.5
+  - d_gb: 10.0
+    mob_phi: 5.0
+  - d_gb: 20.0
+    mob_phi: 10.0
+  - d_gb: 30.0
+    mob_phi: 15.0
+  - d_gb: 100.0
+    mob_phi: 50.0
+
+sigma1_test:
+  - sigma_1: 2.0
+  - sigma_1: 3.0
+  - sigma_1: 4.0
+  - sigma_1: 5.0
+  - sigma_1: 6.0
+
+sigma2_test:
+  - sigma_2: 2.0
+  - sigma_2: 3.0
+  - sigma_2: 4.0
+
+ap_test:
+  - ap: 2.0
+  - ap: 3.0
+  - ap: 4.0
+  - ap: 5.0
+
+con_0_test:
+  - con_0_mat: 0.1
+    con_0_ppt: 0.5
+  - con_0_mat: 0.1
+    con_0_ppt: 0.5
+
+ic_test:
+  - start: 'circle'
+  - start: 'plane'
+    num_ppt: 2
+  - start: 'polycrystal'
+

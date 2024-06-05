@@ -1,3 +1,4 @@
+from datetime import datetime
 import numpy as np
 import subprocess
 import hashlib
@@ -61,17 +62,31 @@ def generate_dirname(output_dir, parameters):
 
     return output_dirname
 
-def check_job_status(job_id):
-    result = subprocess.run(["squeue", "-j", job_id], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+def check_job_status(job_ids):
+    print(f'Checking job status {datetime.now().strftime("%H:%M:%S")}')
+
+    try:
+        # Print the output status of all job_ids
+        full_result = subprocess.run(["squeue", "-u", "jroger87"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        print(full_result.stdout)
+
+        # Run squeue with options and get the output
+        result = subprocess.run(["squeue", "--noheader", "-o", "%i"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        
+        #print("Result stdout:", result.stdout)
+        #print("Result stderr:", result.stderr)
     
-    #print("Result stdout:", result.stdout)
-    #print("Result stderr:", result.stderr)
+        # Extract job IDs from the squeue output
+        running_job_ids = set(result.stdout.split())
+    
+        # Determine which jobs are complete (not running or pending)
+        completed_jobs = [job_id for job_id in job_ids if job_id not in running_job_ids]
 
-    if result.returncode != 0:
-        print(f"Error checking job status: {result.stderr}")
-        return None
+        return completed_jobs
 
-    return "RUNNING" in result.stdout or "PENDING" in result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking job status: {e.stderr}")
+        return []
 
 # generate input file
 def generate_input_file(output_dir, params):
@@ -81,7 +96,7 @@ def generate_input_file(output_dir, params):
         file.write(f"1       / nrun\n")
         file.write(f"4 4 4 {params['N_step']} {params['ifreq']}      / ppt_rad(3), N_step, ifreq\n")
         file.write(f"48 70 48 -1        / i_ppt, j_ppt, k_ppt, iseed\n")
-        file.write(f"40 50  / grn_rad, num_ppt\n")
+        file.write(f"40 {params['num_ppt']}  / grn_rad, num_ppt\n")
         file.write(f"{params['Nx']} {params['Ny']} {params['Nz']} 3 0.01 0.01 0.01 {params['t_step']}  / Nx, Ny, Nz, var, dx, dy, dz, t_step\n")
         file.write(f"{params['grad_coeff_phi']} {params['grad_coeff_c']} {params['d_bulk']} {params['d_gb']} {params['mob_phi']}   / grad_coeff_phi, grad_coeff_c, d_bulk, d_gb, mob_phi\n")
         file.write(f"6.0  3.0  / sigma_1, sigma_2\n") 
@@ -93,7 +108,7 @@ def generate_input_file(output_dir, params):
     
     return input_file_path
     
-def submit_slurm_job(config, output_dir, input_file_path, time_str="0:20:00"):
+def submit_slurm_job(config, output_dir, input_file_path, time_str="1:00:00"):
     # Calculate the number of tasks
     ntasks = int(config["dims"][0] * config["dims"][1])
 
@@ -141,12 +156,13 @@ def submit_slurm_job(config, output_dir, input_file_path, time_str="0:20:00"):
     return script_filename, job_id
 
 # run simulation with given parameter combination
-def run_phase_sim(output_dir, params):
+def run_phase_sim(output_dir, params, max_runtime):
     # If simulation has been run previously, dont rerun it
     sim_dirname = generate_dirname(output_dir, params)
     if not os.path.exists(sim_dirname):
         os.makedirs(sim_dirname)
     else:
+        print(f'Simulation has already been run: {sim_dirname}')
         return sim_dirname, None
 
     # Generate input.txt file according to parameters
@@ -155,8 +171,8 @@ def run_phase_sim(output_dir, params):
     print(colors.BLUE + input_file_path + colors.ENDC)
     
     # Run var_diff.x with slurm according to parameters
-    slurm_filename, jobid = submit_slurm_job(params, sim_dirname, input_file_path)  # run the job
-    #slurm_filename, jobid = os.path.join(sim_dirname, 'tmp.sl'), None              # dont actually run the job
+    slurm_filename, jobid = submit_slurm_job(params, sim_dirname, input_file_path, max_runtime) # run the job
+    #slurm_filename, jobid = os.path.join(sim_dirname, 'tmp.sl'), None                          # dont actually run the job
     print(colors.GREEN + "Running Slurm File:" + colors.ENDC)
     print(colors.BLUE + slurm_filename + colors.ENDC)
 
