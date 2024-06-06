@@ -32,8 +32,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Phase Field simulation for given parameter combination")
     parser.add_argument("-i ", "--input_params", nargs='?', default='../inputs/config.yaml', help="input .yaml file for parameter combinations to be tested")
     parser.add_argument("-o ", "--output_dir", nargs='?', default=None, help="output directory for tests and summary file")
-    parser.add_argument("--test_type", type=str, choices=['strong_test', 'weak_test'], required=False, help="Time limit for jobs to run")
+    parser.add_argument("--test_type", type=str, choices=['strong_test', 'weak_test', 'phi_coeff_test', 'c_coeff_test', 'd_gb_test', 'sigma1_test', 'sigma2_test', 'ap_test', 'con_0_test', 'ic_test'], required=False, help="Time limit for jobs to run")
     parser.add_argument("--time", default="1:00:00", help="Time limit for jobs to run")
+    parser.add_argument('--visualize', action='store_true', help='Automatically generate paraview visualization .vtk files')
 
     args = parser.parse_args()
     max_runtime = args.time
@@ -109,6 +110,11 @@ if __name__ == "__main__":
             if job_id in job_status:
                 # job is complete, analyze the output
                 save_output(job_info['config'], job_info['sim_path'], summary_file)
+
+                # run the visualization creation tool
+                if args.visualize:
+                    run_paraview_converter(job_info['sim_path'])
+
                 completed_jobs.append(job_id)  # Add completed job to the list        
 
         # Remove completed jobs from the dictionary

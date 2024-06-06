@@ -193,3 +193,17 @@ def analyze_phase_sim_output(sim_dirname):
     #TODO add other quantities to be measured
 
     return duration
+
+# Generate .vtk files from step_ files to visualize result with paraview
+def run_paraview_converter(sim_dirname):
+    # Create visualization directory if not exists
+    vis_outdir = os.path.join(sim_dirname, 'visualization')
+
+    if not os.path.exists(vis_outdir):
+        os.makedirs(vis_outdir)
+
+    # Run paraview.x on given filenames
+    command = f'../src/paraview.x {sim_dirname} {vis_outdir} > {os.path.join(vis_outdir, "mrun.out")}' 
+    print(colors.GREEN + "Running command:" + colors.ENDC)
+    print(colors.BLUE + command + colors.ENDC)
+    os.system(command)

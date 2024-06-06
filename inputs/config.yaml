@@ -1,5 +1,5 @@
 baseline_config:
-  N_step: 1000
+  N_step: 100000
   ifreq: 1000
   num_ppt: 50
   Nx: 96
@@ -26,60 +26,74 @@ strong_test:
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [1, 2]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [2, 2]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [2, 4]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [4, 4]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [4, 8]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
   - dims: [8, 8]
     Nx: 96
     Ny: 96
     Nz: 96
+    N_step: 1000
 
 weak_test:
   - dims: [1, 1]
     Nx: 64
     Ny: 64
     Nz: 64
+    N_step: 1000
   - dims: [1, 2]
     Nx: 80
     Ny: 80
     Nz: 80
+    N_step: 1000
   - dims: [2, 2]
     Nx: 102
     Ny: 102
     Nz: 102
+    N_step: 1000
   - dims: [2, 4]
     Nx: 128
     Ny: 128
     Nz: 128
+    N_step: 1000
   - dims: [4, 4]
     Nx: 160
     Ny: 160
     Nz: 160
+    N_step: 1000
   - dims: [4, 8]
     Nx: 200
     Ny: 200
     Nz: 200
+    N_step: 1000
   - dims: [8, 8]
     Nx: 256
     Ny: 256
     Nz: 256
+    N_step: 1000
 
 phi_coeff_test:
   - grad_coeff_phi: 1.0

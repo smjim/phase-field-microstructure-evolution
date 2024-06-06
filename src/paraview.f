@@ -67,7 +67,7 @@
       ! Loop through step directories
       do step_i = 1, num_steps 
             step_string = trim(step_strings(step_i))
-            step_dir = trim(input_dir) // 'step_' & 
+            step_dir = trim(input_dir) // '/step_' & 
                   //trim(adjustl(step_string)) // '/'
 
             print *, "Analyzing directory: ", step_dir
@@ -80,8 +80,8 @@
             read(11,*) Nx, Ny, Nz, nprocs, var
             read(11,*) dims(1), dims(2)
             close(11)
-            open(3, file=trim(output_dir)//'shape_phi', status='unknown')
-            open(4, file=trim(output_dir)//'phi_var', status='unknown')
+            open(3, file=trim(output_dir)//'/shape_phi', status='unknown')
+            open(4,   file=trim(output_dir)//'/phi_var', status='unknown')
       
             nxyz = Nx*Ny*Nz
             nxy = Nx*Ny
@@ -94,10 +94,10 @@
             allocate (var_count(var))
       
             ! Write VTK files
-            outfile_phi_sq = trim(output_dir) // 'phi_sq_' // trim(adjustl(step_string)) // '.vtk'
-            outfile_con = trim(output_dir) // 'con_' // trim(adjustl(step_string)) // '.vtk'
-            outfile_var_num = trim(output_dir) // 'var_num_' // trim(adjustl(step_string)) // '.vtk'
-            outfile_phi_3 = trim(output_dir) // 'phi_3_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_phi_sq = trim(output_dir) // '/phi_sq_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_con = trim(output_dir) // '/con_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_var_num = trim(output_dir) // '/var_num_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_phi_3 = trim(output_dir) // '/phi_3_' // trim(adjustl(step_string)) // '.vtk'
 
             open(21, file=trim(outfile_phi_sq), status='unknown')
             open(22, file=trim(outfile_con), status='unknown')
