@@ -180,19 +180,30 @@ def run_phase_sim(output_dir, params, max_runtime):
     
 # analyze simulation output for duration 
 def analyze_phase_sim_output(sim_dirname):
-    # Duration comes from os.path.join(sim_dirname, 'time_step.dat')
-    duration = None
-    with open(os.path.join(sim_dirname, 'time_step.dat'), 'r') as file:
-        reader = csv.reader(file, delimiter=' ', skipinitialspace=True)
-        next(reader)  # Skip header line
-        for row in reader:
-            if len(row) == 0:  # Skip empty lines
-                continue
-            duration = float(row[2])
+    # Calculate computation duration of run
+    def calculate_duration(sim_dirname):
+        # Duration comes from os.path.join(sim_dirname, 'time_step.dat')
+        duration = None
+        with open(os.path.join(sim_dirname, 'time_step.dat'), 'r') as file:
+            reader = csv.reader(file, delimiter=' ', skipinitialspace=True)
+            next(reader)  # Skip header line
+            for row in reader:
+                if len(row) == 0:  # Skip empty lines
+                    continue
+                duration = float(row[2])
+        return duration
 
-    #TODO add other quantities to be measured
+    # TODO Calculate "fraction of boundaries covered by precipitates due to spreading along boundaries" with fortran
+    def calculaate_final_phase_fraction(sim_dirname):
+        # Run fortran code on final vtk(?) TODO figure this out
+        phase_fraction = 0.5 # TODO figure this out
+        return phase_fraction
 
-    return duration
+    # TODO add other quantities to be measured
+    duration = calculate_duration(sim_dirname)
+    phase_fraction = calculate_final_phase_fraction(sim_dirname)
+
+    return duration, phase_fraction
 
 # Generate .vtk files from step_ files to visualize result with paraview
 def run_paraview_converter(sim_dirname):

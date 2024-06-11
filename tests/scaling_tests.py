@@ -14,11 +14,11 @@ def load_config(yaml_file):
     return config
 
 def save_output(config, sim_path, summary_file):
-    duration = analyze_phase_sim_output(sim_path) 
+    duration, phase_fraction = analyze_phase_sim_output(sim_path) 
 
     # Write output to file
     line = list(config.values())
-    line.extend([duration, sim_path])
+    line.extend([duration, phase_fraction, sim_path])
     with open(summary_file, 'a', newline='') as file:
         writer=csv.writer(file)
         writer.writerow(line)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     with open(summary_file, 'w', newline='') as file:
         writer=csv.writer(file) 
         header=list(baseline_config.keys())         # Input parameters
-        header.extend(['duration', 'output_dir'])   # Tested outputs
+        header.extend(['duration', 'phase_fraction', 'output_dir'])   # Tested outputs
         writer.writerow(header)
 
     # ---------------------------

@@ -16,6 +16,11 @@ Phase field simulation of microstructure evolution
 
 ### 1.2 Features
 
+A general description of the features and running of the scripts is shown below:  
+![Code map 6-11-2024](./doc/code_map_6-11-2024.png)
+![Simulation Pipeline 6-11-2024](./doc/simulation_pipeline_6-11-2024.png)
+![Analysis Pipeline 6-11-2024](./doc/analysis_pipeline_6-11-2024.png)
+
 ## 2 Installation
 
 ## 3 Usage
