@@ -217,7 +217,7 @@
 
       if(start.eq.'polycryst') then
 
-      open(3,file='mc_ivar_fin',status='old')
+      open(3,file='/scratch/jroger87/phase-field-microstructure-evolution/inputs/polycrystal_configs/mc_ivar_fin',status='old')
 
       do k = 1, Nz
       do j = 1, Ny

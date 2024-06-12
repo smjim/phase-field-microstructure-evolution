@@ -11,11 +11,15 @@
       real *8, dimension(:), allocatable ::  con_gl
       real *8, dimension(:), allocatable ::  phi_sq_gl
       real *8, dimension(:), allocatable ::  phi_3_gl, grad_phi_3_gl
+      real *8, dimension(:), allocatable :: boundary_gl 
+      real *8 threshold, phi_above_threshold
 
       real *8 term, phi_sq, phi_sum, phi_tot, phi_max, phi_temp
       character(len=256) :: input_dir, output_dir, step_dir
       character(len=32) :: file_num
-      character(len=256) :: infile, outfile_phi_sq, outfile_con, outfile_var_num, outfile_phi_3, outfile_grad_phi_3
+      character(len=256) :: infile, outfile_phi_sq, outfile_con 
+      character(len=256) :: outfile_var_num, outfile_phi_3, outfile_grad_phi_3
+      character(len=256) :: outfile_boundary
       character(len=256) :: command
       character(len=64), dimension(:), allocatable :: step_strings
       character(len=64) :: step_line
@@ -24,6 +28,8 @@
 
       call get_command_argument(1, input_dir, status=ierr)
       call get_command_argument(2, output_dir, status=ierr)
+
+      threshold = 0.2 ! Threshold for boundary calculation
       
       ! Determine step directories
       command = 'ls ' // trim(input_dir) // &
@@ -81,8 +87,8 @@
             read(11,*) Nx, Ny, Nz, nprocs, var
             read(11,*) dims(1), dims(2)
             close(11)
-            open(3, file=trim(output_dir)//'/shape_phi', status='unknown')
-            open(4,   file=trim(output_dir)//'/phi_var', status='unknown')
+            !open(3, file=trim(output_dir)//'/shape_phi', status='unknown')
+            !open(4, file=trim(output_dir)//'/phi_var', status='unknown')
       
             Nxyz = Nx*Ny*Nz
             Nxy = Nx*Ny
@@ -94,6 +100,7 @@
             allocate (con_gl(1:Nxyz))
             allocate (num_var_gl(1:Nxyz))
             allocate (var_count(var))
+            allocate (boundary_gl(1:Nxyz))
       
             ! Write VTK files
             outfile_phi_sq = trim(output_dir) // '/phi_sq_' // trim(adjustl(step_string)) // '.vtk'
@@ -101,14 +108,16 @@
             outfile_var_num = trim(output_dir) // '/var_num_' // trim(adjustl(step_string)) // '.vtk'
             outfile_phi_3 = trim(output_dir) // '/phi_3_' // trim(adjustl(step_string)) // '.vtk'
             outfile_grad_phi_3 = trim(output_dir) // '/grad_phi_3_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_boundary = trim(output_dir) // '/boundary_' // trim(adjustl(step_string)) // '.vtk'
 
             open(21, file=trim(outfile_phi_sq), status='unknown')
             open(22, file=trim(outfile_con), status='unknown')
             open(23, file=trim(outfile_var_num), status='unknown')
             open(24, file=trim(outfile_phi_3), status='unknown')
             open(25, file=trim(outfile_grad_phi_3), status='unknown')
+            open(26, file=trim(outfile_boundary), status='unknown')
       
-            do ii = 21,25
+            do ii = 21,26
             write(ii,'(a26)') "# vtk DataFile Version 3.0"
             write(ii,'(a11)') "Sample Data"
             write(ii,'(a5)') "ASCII"
@@ -121,18 +130,22 @@
             write(ii,'(a20)') "LOOKUP_TABLE default"
             end do
 
+            print *, "writing file for step ", step_string
+            open(95, file=trim(output_dir) // '/phi_values' // trim(adjustl(step_string)) // '.dat', status='unknown')
+            write(95,'(A)') "# x, y, z, phi 1, phi 2, phi 3, phi_sq"
+
             phi_tot = 0.0
             var_count = 0
       
-            write(1,*) 'zone', ' ', 'i=', Nx, ' ', 'j=', Ny, ' ', 'k=', Nz, 'f=', 'point'
-            write(3,*) 'zone', ' ', 'i=', Nx, ' ', 'j=', Ny, ' ', 'k=', Nz, 'f=', 'point'
+            !write(1,*) 'zone', ' ', 'i=', Nx, ' ', 'j=', Ny, ' ', 'k=', Nz, 'f=', 'point'
+            !write(3,*) 'zone', ' ', 'i=', Nx, ' ', 'j=', Ny, ' ', 'k=', Nz, 'f=', 'point'
       
             myid = 0
             do kk=1,dims(2)
                do j=1,dims(1)
                   myid = myid + 1
                   write(file_num,'(i4.4)') myid
-                  open(12,file=trim(step_dir)//'data_save.'//file_num, status='old', &
+                  open(12,file=trim(step_dir)//'/data_save.'//file_num, status='old', &
                       form='unformatted')
                   read(12) ist, ien
                   if ( j.eq. 1 ) allocate( phi(var, Nx, Ny, ist(3):ien(3)) )
@@ -141,26 +154,40 @@
                            con(1:Nx,ist(2):ien(2),ist(3):ien(3))
                   close(12)
                end do
-                  write(95,*) Nx, Ny, ist, ien
-                  call flush(95)
-               print *, 
+                  !write(95,*) Nx, Ny, ist, ien
+                  !call flush(95)
       
                do k = ist(3), ien(3)
                do j = 1, Ny
                do i = 1, Nx 
-      
+
                   ll = (k-1) * Nxy + (j-1) * Nx + i
                   con_gl(ll) = con(i,j,k)
                   phi_sq = 0.0
                   phi_max = 0.8
                   var_max = 0
+
+                  phi_above_threshold = 0 
+
                   do ii = 1, var ! loop through all precipitates 
-                  if (ii.eq.var) phi_3_gl(ll) = phi(3,i,j,k) ! var is the "precipitate phase"?
-                  phi_sq = phi_sq + phi(ii,i,j,k)*phi(ii,i,j,k)
-                  if(phi(ii,i,j,k).gt.phi_max) var_max = ii
+                    if (ii.eq.var) phi_3_gl(ll) = phi(3,i,j,k) ! var is the "precipitate phase"?
+                    phi_sq = phi_sq + phi(ii,i,j,k)*phi(ii,i,j,k)
+                    if(phi(ii,i,j,k).gt.phi_max) var_max = ii
+                    if(phi(ii,i,j,k).gt.threshold) phi_above_threshold = phi_above_threshold + 1
                   end do
+
+                  write(95,'(3(I6), 4(F6.2))') i, j, k, phi(1,i,j,k), phi(2,i,j,k), phi(3,i,j,k), phi_sq
+
                   phi_sq_gl(ll) = phi_sq
                   num_var_gl(ll) = var_max
+
+                  ! if more than one phi is nonzero, that signifies a boundary
+                  !if (phi_above_threshold .gt. 1) then 
+                  !  boundary_gl(ll) = 1.0 !phi_above_threshold
+                  !else
+                  !  boundary_gl(ll) = 0.0
+                  !end if
+                  boundary_gl(ll) = phi_above_threshold
                end do
                end do
                end do
@@ -179,12 +206,16 @@
                write(23,*) num_var_gl
                write(24,*) phi_3_gl
                write(25,*) grad_phi_3_gl
+               write(26,*) boundary_gl
       
             close(21)
             close(22)
             close(23)
             close(24)
             close(25)
+            close(26)
+
+            close(95)
 
             deallocate(phi_sq_gl)
             deallocate(phi_3_gl)
@@ -192,6 +223,7 @@
             deallocate(con_gl)
             deallocate(num_var_gl)
             deallocate(var_count)
+            deallocate(boundary_gl)
 
       end do
      

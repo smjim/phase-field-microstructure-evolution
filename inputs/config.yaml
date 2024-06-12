@@ -7,7 +7,7 @@ baseline_config:
   Nz: 96
   t_step: 1.e-4
   dims: [4, 4]
-  start: 'polycryst' #plane, circle, polycryst
+  start: 'circle' #plane, circle, polycryst
   grad_coeff_phi: 1.0
   grad_coeff_c: 1.0
   d_bulk: 1.0
@@ -148,4 +148,5 @@ ic_test:
   - start: 'plane'
     num_ppt: 2
   - start: 'polycryst'
-
+    sigma_1: 6.0
+    sigma_2: 3.0
