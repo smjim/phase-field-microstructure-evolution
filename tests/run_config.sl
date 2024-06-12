@@ -14,6 +14,6 @@
 ##SBATCH --mail-type=ALL
 
 module purge
-module load PrgEnv-intel
-module load fftw/3.3.10-intel-oneapi-mpi-intel
-srun $SRUNOPTS ../src/var_diff.x ../inputs/input.txt "$1" > "$1"mrun.out
+module load python/3.11.4
+
+srun python scaling_tests.py -o ../output/tmp/polycrystal_test -i ../inputs/config.yaml --test_type phi_coeff_test --time 1:00:00

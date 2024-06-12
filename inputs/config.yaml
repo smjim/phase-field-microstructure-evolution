@@ -1,5 +1,5 @@
 baseline_config:
-  N_step: 100000
+  N_step: 5000
   ifreq: 1000
   num_ppt: 50
   Nx: 96
@@ -7,7 +7,7 @@ baseline_config:
   Nz: 96
   t_step: 1.e-4
   dims: [4, 4]
-  start: 'polycrystal' #plane, circle, polycrystal
+  start: 'polycryst' #plane, circle, polycryst
   grad_coeff_phi: 1.0
   grad_coeff_c: 1.0
   d_bulk: 1.0
@@ -147,5 +147,5 @@ ic_test:
   - start: 'circle'
   - start: 'plane'
     num_ppt: 2
-  - start: 'polycrystal'
+  - start: 'polycryst'
 

@@ -1,6 +1,6 @@
       program paraview
       implicit none
-      integer Nx, Ny, Nz, nxyz, nprocs, dims(2), myid, ist(3), ien(3), nxy
+      integer Nx, Ny, Nz, Nxyz, nprocs, dims(2), myid, ist(3), ien(3), Nxy
       integer i, j, k, kk, var, ivar, step, var_max, ii, ll
       integer ix, jy, kz
       integer ierr
@@ -8,13 +8,14 @@
       integer, dimension(:), allocatable :: num_var_gl
       real *8, dimension(:,:,:,:), allocatable :: phi
       real *8, dimension(:,:,:), allocatable :: con
-      real *8, dimension(:), allocatable ::  phi_sq_gl
-      real *8, dimension(:), allocatable ::  phi_3_gl
       real *8, dimension(:), allocatable ::  con_gl
+      real *8, dimension(:), allocatable ::  phi_sq_gl
+      real *8, dimension(:), allocatable ::  phi_3_gl, grad_phi_3_gl
+
       real *8 term, phi_sq, phi_sum, phi_tot, phi_max, phi_temp
       character(len=256) :: input_dir, output_dir, step_dir
       character(len=32) :: file_num
-      character(len=256) :: infile, outfile_phi_sq, outfile_con, outfile_var_num, outfile_phi_3
+      character(len=256) :: infile, outfile_phi_sq, outfile_con, outfile_var_num, outfile_phi_3, outfile_grad_phi_3
       character(len=256) :: command
       character(len=64), dimension(:), allocatable :: step_strings
       character(len=64) :: step_line
@@ -83,14 +84,15 @@
             open(3, file=trim(output_dir)//'/shape_phi', status='unknown')
             open(4,   file=trim(output_dir)//'/phi_var', status='unknown')
       
-            nxyz = Nx*Ny*Nz
-            nxy = Nx*Ny
+            Nxyz = Nx*Ny*Nz
+            Nxy = Nx*Ny
 
       
-            allocate (phi_sq_gl(1:nxyz))
-            allocate (phi_3_gl(1:nxyz))
-            allocate (con_gl(1:nxyz))
-            allocate (num_var_gl(1:nxyz))
+            allocate (phi_sq_gl(1:Nxyz))
+            allocate (phi_3_gl(1:Nxyz))
+            allocate (grad_phi_3_gl(1:Nxyz))
+            allocate (con_gl(1:Nxyz))
+            allocate (num_var_gl(1:Nxyz))
             allocate (var_count(var))
       
             ! Write VTK files
@@ -98,13 +100,15 @@
             outfile_con = trim(output_dir) // '/con_' // trim(adjustl(step_string)) // '.vtk'
             outfile_var_num = trim(output_dir) // '/var_num_' // trim(adjustl(step_string)) // '.vtk'
             outfile_phi_3 = trim(output_dir) // '/phi_3_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_grad_phi_3 = trim(output_dir) // '/grad_phi_3_' // trim(adjustl(step_string)) // '.vtk'
 
             open(21, file=trim(outfile_phi_sq), status='unknown')
             open(22, file=trim(outfile_con), status='unknown')
             open(23, file=trim(outfile_var_num), status='unknown')
             open(24, file=trim(outfile_phi_3), status='unknown')
+            open(25, file=trim(outfile_grad_phi_3), status='unknown')
       
-            do ii = 21,24
+            do ii = 21,25
             write(ii,'(a26)') "# vtk DataFile Version 3.0"
             write(ii,'(a11)') "Sample Data"
             write(ii,'(a5)') "ASCII"
@@ -112,7 +116,7 @@
             write(ii,'(a10,2x,3i6)') "DIMENSIONS",nx,ny,nz
             write(ii,'(a24)') "ASPECT_RATIO 1.0 1.0 1.0"
             write(ii,'(a18)') "ORIGIN 0.0 0.0 0.0"
-            write(ii,'(a10,2x,i12)') "POINT_DATA",nxyz
+            write(ii,'(a10,2x,i12)') "POINT_DATA",Nxyz
             write(ii,'(a22)') "SCALARS Field double 1"
             write(ii,'(a20)') "LOOKUP_TABLE default"
             end do
@@ -139,18 +143,19 @@
                end do
                   write(95,*) Nx, Ny, ist, ien
                   call flush(95)
+               print *, 
       
                do k = ist(3), ien(3)
                do j = 1, Ny
                do i = 1, Nx 
       
-                  ll = (k-1) * nxy + (j-1) * Nx + i
+                  ll = (k-1) * Nxy + (j-1) * Nx + i
                   con_gl(ll) = con(i,j,k)
                   phi_sq = 0.0
                   phi_max = 0.8
                   var_max = 0
-                  do ii = 1, var
-                  if (ii.eq.var) phi_3_gl(ll) = phi(3,i,j,k)
+                  do ii = 1, var ! loop through all precipitates 
+                  if (ii.eq.var) phi_3_gl(ll) = phi(3,i,j,k) ! var is the "precipitate phase"?
                   phi_sq = phi_sq + phi(ii,i,j,k)*phi(ii,i,j,k)
                   if(phi(ii,i,j,k).gt.phi_max) var_max = ii
                   end do
@@ -163,25 +168,86 @@
                deallocate (phi)
                deallocate (con)
             end do
+
+            ! Calculate gradient of phi field
+            call calculate_phi_grad(Nx, Ny, Nz, phi_3_gl, grad_phi_3_gl)
       
+            ! Write outputs
+
                write(21,*) phi_sq_gl
                write(22,*) con_gl
                write(23,*) num_var_gl
                write(24,*) phi_3_gl
+               write(25,*) grad_phi_3_gl
       
             close(21)
             close(22)
             close(23)
             close(24)
+            close(25)
 
             deallocate(phi_sq_gl)
             deallocate(phi_3_gl)
+            deallocate(grad_phi_3_gl)
             deallocate(con_gl)
             deallocate(num_var_gl)
             deallocate(var_count)
 
       end do
      
-      end program paraview
+      contains
 
+      ! Subroutine for calculation of gradients of phi
+      subroutine calculate_phi_grad(Nx, Ny, Nz, phi, grad_phi_mag)
+            implicit none
+
+            integer, intent(in) :: Nx, Ny, Nz
+            real(8), intent(in) :: phi(:)
+            real(8), dimension(:,:,:), allocatable :: phi_3, grad_phi_3_mag
+            real(8), dimension(:,:,:), allocatable :: grad_x, grad_y, grad_z
+            real(8), intent(out) :: grad_phi_mag(:)
+            integer :: i, j, k
+
+            allocate(grad_x(Nx, Ny, Nz))
+            allocate(grad_y(Nx, Ny, Nz))
+            allocate(grad_z(Nx, Ny, Nz))
+
+            allocate(phi_3(Nx, Ny, Nz))
+            allocate(grad_phi_3_mag(Nx, Ny, Nz))
+
+            ! Reshape phi array
+            phi_3 = reshape(phi, [Nx, Ny, Nz])
+
+            ! Initialize gradients to zero
+            grad_x = 0.0
+            grad_y = 0.0
+            grad_z = 0.0
+
+            ! Compute gradients using central differences
+            do k = 2, Nz-1
+            do j = 2, Ny-1
+            do i = 2, Nx-1
+              grad_x(i,j,k) = (phi_3(i+1,j,k) - phi_3(i-1,j,k)) / 2.0
+              grad_y(i,j,k) = (phi_3(i,j+1,k) - phi_3(i,j-1,k)) / 2.0
+              grad_z(i,j,k) = (phi_3(i,j,k+1) - phi_3(i,j,k-1)) / 2.0 
+
+              ! Calculate grad magnitude array
+              grad_phi_3_mag(i,j,k) = sqrt(grad_x(i,j,k)**2 + grad_y(i,j,k)**2 + grad_z(i,j,k)**2)
+            end do
+            end do
+            end do
+
+            ! Reshape grad magnitude array
+            grad_phi_mag = reshape(grad_phi_3_mag, [Nx*Ny*Nz])
+            
+            deallocate(phi_3)
+            deallocate(grad_phi_3_mag)
+
+            deallocate(grad_x)
+            deallocate(grad_y)
+            deallocate(grad_z)
+
+      end subroutine calculate_phi_grad
+
+      end program paraview
 
