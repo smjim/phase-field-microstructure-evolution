@@ -7,7 +7,7 @@ LINPLIB = $(HOME)/liblinpack.a
 FFTW =  -I /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/include -L /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/lib -lfftw3 -lfftw3_mpi
 P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccpcmornl/for_james/P3DFFT-2.7.9/lib -lp3dfft
 
-all: var_diff.x paraview.x analyze_phase.x
+all: var_diff.x paraview.x
 
 OBJECTS = \
 ran_2.o f_trans.o  inv_trans.o  k_space.o \
@@ -30,19 +30,12 @@ var_diff.o : var_diff.f
 ran_2.o : ran_2.f 
 	$(FC) $(FFLAGS) -c ran_2.f $(FFTW) $(P3DFFT) $(LINPLIB)
 
-# Paraview
+# Paraview visualization and analysis of phase data
 paraview.x : paraview.o
 	$(FC) -o $@ $(FFLAGS) paraview.o
 
 paraview.o : paraview.f
 	$(FC) $(FFLAGS) -c paraview.f
 
-# Analyze phase data
-analyze_phase.x : analyze_phase.o 
-	$(FC) -o $@ $(FFLAGS) analyze_phase.o $(LINPLIB) $(P3DFFT) $(FFTW)
-
-analyze_phase.o : analyze_phase.f
-	$(FC) $(FFLAGS) -c analyze_phase.f $(FFTW) $(P3DFFT) $(LINPLIB)
-
 clean:
-	rm *.o var_diff.x paraview.x analyze_phase.x
+	rm *.o var_diff.x paraview.x

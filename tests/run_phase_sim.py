@@ -14,7 +14,7 @@ slurm_template = """#!/bin/bash
 #SBATCH --error={error_path}
 #SBATCH --ntasks={ntasks}
 #SBATCH --account=ccpcmornl
-#SBATCH --qos=high
+##SBATCH --qos=high
 #SBATCH --time={time}
 ##SBATCH --partition=debug
 ##SBATCH --mail-user=jroger87@vols.utk.edu
@@ -24,7 +24,28 @@ module purge
 module load PrgEnv-intel
 module load fftw/3.3.10-intel-oneapi-mpi-intel
 
-srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/src/var_diff.x {input_file_path} {output_dir} > {mrun_path}
+srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/tmp/var_diff.x {input_file_path} {output_dir} > {mrun_path}
+"""
+#srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/src/var_diff.x {input_file_path} {output_dir} > {mrun_path}
+
+paraview_slurm_template = """#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --job-name=paraview_converter
+#SBATCH --output={output_file}
+#SBATCH --error={error_file}
+#SBATCH --ntasks={ntasks}
+##SBATCH --qos=high
+#SBATCH --account=ccpcmornl
+#SBATCH --time={time}
+##SBATCH --partition=debug
+##SBATCH --mail-user=jroger87@vols.utk.edu
+##SBATCH --mail-type=ALL
+
+module purge
+module load PrgEnv-intel
+module load fftw/3.3.10-intel-oneapi-mpi-intel
+
+srun $SRUNOPTS {fortran_executable} {sim_dirname} {vis_outdir} {threshold_str} > {precipitate_outfile}
 """
 
 class colors:
@@ -97,7 +118,7 @@ def generate_input_file(output_dir, params):
         file.write(f"4 4 4 {params['N_step']} {params['ifreq']}      / ppt_rad(3), N_step, ifreq\n")
         file.write(f"48 70 48 -1        / i_ppt, j_ppt, k_ppt, iseed\n")
         file.write(f"40 {params['num_ppt']}  / grn_rad, num_ppt\n")
-        file.write(f"{params['Nx']} {params['Ny']} {params['Nz']} 3 0.01 0.01 0.01 {params['t_step']}  / Nx, Ny, Nz, var, dx, dy, dz, t_step\n")
+        file.write(f"{params['Nx']} {params['Ny']} {params['Nz']} {params['var']} 0.01 0.01 0.01 {params['t_step']}  / Nx, Ny, Nz, var, dx, dy, dz, t_step\n")
         file.write(f"{params['grad_coeff_phi']} {params['grad_coeff_c']} {params['d_bulk']} {params['d_gb']} {params['mob_phi']}   / grad_coeff_phi, grad_coeff_c, d_bulk, d_gb, mob_phi\n")
         file.write(f"6.0  3.0  / sigma_1, sigma_2\n") 
         file.write(f"{params['am']} {params['ap']} {params['con_0_mat']} {params['con_0_ppt']} {params['gb_force']}     / am, ap, con_0_mat, con_0_ppt, gb_force\n")
@@ -193,28 +214,96 @@ def analyze_phase_sim_output(sim_dirname):
                 duration = float(row[2])
         return duration
 
-    # TODO Calculate "fraction of boundaries covered by precipitates due to spreading along boundaries" with fortran
-    def calculaate_final_phase_fraction(sim_dirname):
-        # Run fortran code on final vtk(?) TODO figure this out
-        phase_fraction = 0.5 # TODO figure this out
-        return phase_fraction
+    # Calculate fraction of boundaries covered by precipitates with fortran
+    def calculate_final_phase_fraction(sim_dirname):
+        threshold = 0.2
+        # Run the visualization creation tool
+        phase_fraction_file = run_paraview_converter(sim_dirname, threshold)
+    
+        # Read the last line from the output file
+        if phase_fraction_file is not None:
+            with open(phase_fraction_file, 'r') as file:
+                lines = file.readlines()
+                if not lines:
+                    raise ValueError(f"Output file {phase_fraction_file} is empty.")
+                last_line = lines[-1].strip()
+                phase_fraction = float(last_line.split()[3])  # Assuming the phase fraction is in the fourth column
 
+            return phase_fraction
+        else:
+            return "rerun for analysis"
+
+    # ------------------------------------
     # TODO add other quantities to be measured
+    # ------------------------------------
+
+    # Calculate duration of simulation runtime
     duration = calculate_duration(sim_dirname)
+
+    # Calculate precipitate coverage of boundaries
     phase_fraction = calculate_final_phase_fraction(sim_dirname)
+
+    # ------------------------------------
 
     return duration, phase_fraction
 
 # Generate .vtk files from step_ files to visualize result with paraview
-def run_paraview_converter(sim_dirname):
+def run_paraview_converter(sim_dirname, threshold):
+
     # Create visualization directory if not exists
     vis_outdir = os.path.join(sim_dirname, 'visualization')
 
     if not os.path.exists(vis_outdir):
         os.makedirs(vis_outdir)
 
-    # Run paraview.x on given filenames
-    command = f'../src/paraview.x {sim_dirname} {vis_outdir} > {os.path.join(vis_outdir, "mrun.out")}' 
-    print(colors.GREEN + "Running command:" + colors.ENDC)
+    # Construct the command to run the Fortran program
+    fortran_executable = "../src/paraview.x"
+    precipitate_outfile = os.path.join(vis_outdir, 'precipitate_fraction.dat')
+    output_file = os.path.join(vis_outdir,'output.o%j')
+    error_file = os.path.join(vis_outdir,'error.o%j')
+
+    #vis_outdir=f'{vis_outdir}/',
+    slurm_content = paraview_slurm_template.format(
+        vis_outdir=vis_outdir,
+        sim_dirname=sim_dirname,
+        ntasks=4,
+        time='0:10:00',
+        fortran_executable=fortran_executable,
+        precipitate_outfile=precipitate_outfile,
+        output_file = output_file,
+        error_file = error_file,
+        threshold_str=str(threshold)
+    )
+    
+    # Define the SLURM script file name
+    script_filename = os.path.join(vis_outdir, "slurm_job.sh")
+    command = f'srun --time=0:10:00 --account=ccpcmornl -n 4 {fortran_executable} {sim_dirname} {vis_outdir} {str(threshold)} > {precipitate_outfile}'
+    print(colors.GREEN + "Running slurm file:" + colors.ENDC)
+    print(colors.BLUE + script_filename + colors.ENDC)
+    print(colors.GREEN + "Containing command:" + colors.ENDC)
     print(colors.BLUE + command + colors.ENDC)
-    os.system(command)
+    
+    # Write the SLURM script to a file
+    with open(script_filename, 'w') as script_file:
+        script_file.write(slurm_content)
+    
+    # Submit the SLURM job using sbatch
+    result = subprocess.run(["sbatch", script_filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    print(colors.GREEN + "Slurm contents:" + colors.ENDC)
+    print(colors.RED + slurm_content + colors.ENDC)
+    
+    if result.returncode != 0:
+        print("Result stdout:", result.stdout)
+        print("Result stderr:", result.stderr)
+    
+        print(f"Error submitting SLURM job: {result.stderr}")
+        print(colors.GREEN + "Slurm contents:" + colors.ENDC)
+        print(colors.RED + slurm_content + colors.ENDC)
+        return None
+    
+    # Check if the output file exists
+    if not os.path.exists(precipitate_outfile):
+        return None 
+        #raise FileNotFoundError(f"Output file {precipitate_outfile} not found.")
+
+    return precipitate_outfile 

@@ -13,8 +13,8 @@ def load_config(yaml_file):
         config = yaml.safe_load(file)
     return config
 
-def save_output(config, sim_path, summary_file):
-    duration, phase_fraction = analyze_phase_sim_output(sim_path) 
+def save_output(config, sim_path, output, summary_file):
+    duration, phase_fraction = output 
 
     # Write output to file
     line = list(config.values())
@@ -34,7 +34,6 @@ if __name__ == "__main__":
     parser.add_argument("-o ", "--output_dir", nargs='?', default=None, help="output directory for tests and summary file")
     parser.add_argument("--test_type", type=str, choices=['strong_test', 'weak_test', 'phi_coeff_test', 'c_coeff_test', 'd_gb_test', 'sigma1_test', 'sigma2_test', 'ap_test', 'con_0_test', 'ic_test'], required=False, help="Time limit for jobs to run")
     parser.add_argument("--time", default="1:00:00", help="Time limit for jobs to run")
-    parser.add_argument('--visualize', action='store_true', help='Automatically generate paraview visualization .vtk files')
 
     args = parser.parse_args()
     max_runtime = args.time
@@ -56,9 +55,10 @@ if __name__ == "__main__":
 
     # Choose parameter set
     if args.test_type is not None:
-        parameter_swaps = config[args.test_type]    # Specify via command line
+        test_type = args.test_type  # Specify via command line
     else:
-        parameter_swaps = config['weak_test']       # Manually specify
+        test_type = 'weak test'     # Manually specify
+    parameter_swaps = config[test_type]
     
     # Generate configuration list with parameter swaps applied to baseline
     config_list = []
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         config_list.append(new_config)
     
     # Print configuration list
-    print(colors.GREEN + 'Configs to be tested:' + colors.ENDC)
+    print(colors.GREEN + f'Test type: {test_type}\nConfigs to be tested:' + colors.ENDC)
     print(colors.RED)
     print_configs(config_list)
     print(colors.ENDC)
@@ -94,7 +94,8 @@ if __name__ == "__main__":
         if jobid is not None:
             job_dict[jobid] = {'config': config, 'sim_path':sim_path}
         else:   # simulation has already been run, analyze output
-            save_output(config, sim_path, summary_file)
+            output = analyze_phase_sim_output(sim_path) 
+            save_output(config, sim_path, output, summary_file)
 
     # ---------------------------
     # Step 3: Analyze simulation outputs
@@ -105,15 +106,13 @@ if __name__ == "__main__":
 
         # Boolean array of completion status
         job_status = check_job_status(list(job_dict.keys()))
+        print(f'(Debug) Job status: {job_status}')
 
         for job_id, job_info in job_dict.items():
             if job_id in job_status:
                 # job is complete, analyze the output
-                save_output(job_info['config'], job_info['sim_path'], summary_file)
-
-                # run the visualization creation tool
-                if args.visualize:
-                    run_paraview_converter(job_info['sim_path'])
+                output = analyze_phase_sim_output(job_info['sim_path']) 
+                save_output(job_info['config'], job_info['sim_path'], output, summary_file)
 
                 completed_jobs.append(job_id)  # Add completed job to the list        
 

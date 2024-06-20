@@ -67,21 +67,16 @@
       double complex  k_sq, k_4, kf_sum
       complex(p3dfft_type) term11, term22 , term33, term44
 
+      ! Additional variables
+      integer, allocatable :: boundary(:,:,:), boundary_locations(:,:)
+      integer :: phi_above_threshold, num_boundary_locations, loc_count
+      real *8 :: threshold
+
       ! Input filename specification
       call get_command_argument(1, input_file_path, status=ierr)
-!      if (ierr /= 0) then
-!        print *, 'Error: Missing input file path.'
-!        print *, 'Usage: var_diff.x <input_file_path> <output_dir>'
-!        stop 1
-!      end if
     
       ! Output directory specification
       call get_command_argument(2, output_dir, status=ierr)
-!      if (ierr /= 0) then
-!        print *, 'Error: Missing output directory.'
-!        print *, 'Usage: var_diff.x <input_file_path> <output_dir>'
-!        stop 1
-!      end if     
 
       open(93,file=trim(output_dir)//'time_step.dat')
       write(93, '(A)') "# step number, iteration duration, &
@@ -215,27 +210,150 @@
 
       IF(nrun.eq.1) THEN
 
+      ! Subroutine for initializing polycrystal with input file
       if(start.eq.'polycryst') then
+  
+        open(3,file='/scratch/jroger87/phase-field-microstructure-evolution/inputs/polycrystal_configs/mc_ivar_fin',status='old')
+  !'
+        print *, 'using polycrystal configuration'
+  
+        do k = 1, Nz
+        do j = 1, Ny
+        do i = 1, Nx
+  
+          read(3,*) ii, jj, kk, ivar
+          if(ii.ge.ist(1).and.ii.le.ien(1).AND. &
+             jj.ge.ist(2).and.jj.le.ien(2).AND. &
+             kk.ge.ist(3).and.kk.le.ien(3)) then
+             phi(ivar,ii,jj,kk) = 1.d0
+             if(ivar.eq.var) con(ii,jj,kk) = con_0_ppt
+          end if
+  
+        end do
+        end do
+        end do
+  
+        close(3)
 
-      open(3,file='/scratch/jroger87/phase-field-microstructure-evolution/inputs/polycrystal_configs/mc_ivar_fin',status='old')
+      end if
 
-      do k = 1, Nz
-      do j = 1, Ny
-      do i = 1, Nx
+      ! Subroutine for initializing polycrystal with input file, and additional precipitates
+      if(start.eq.'polycryst_bonus') then
+        ! Additional precipitates introduced at randomly chosen locations, in
+        ! a) Boundary between two grains
+        ! b) Boundary between three grains (triple lines)
 
-        read(3,*) ii, jj, kk, ivar
-        if(ii.ge.ist(1).and.ii.le.ien(1).AND. &
-           jj.ge.ist(2).and.jj.le.ien(2).AND. &
-           kk.ge.ist(3).and.kk.le.ien(3)) then
-           phi(ivar,ii,jj,kk) = 1.d0
-           if(ivar.eq.var) con(ii,jj,kk) = con_0_ppt
-        end if
+        threshold = 0.2
+        allocate(boundary(Nx,Ny,Nz))
+      
+        ! Initilize polycrystal from file
+      
+        open(3, file='/scratch/jroger87/phase-field-microstructure-evolution/inputs/polycrystal_configs/mc_ivar_fin', status='old')
+!'
+        do k = 1, Nz
+          do j = 1, Ny
+            do i = 1, Nx
+              read(3, *) ii, jj, kk, ivar
+              if (ii >= ist(1) .and. ii <= ien(1) .and. &
+                  jj >= ist(2) .and. jj <= ien(2) .and. &
+                  kk >= ist(3) .and. kk <= ien(3)) then
+                phi(ivar, ii, jj, kk) = 1.d0
+                if (ivar .eq. var) con(ii, jj, kk) = con_0_ppt
+              end if
+            end do
+          end do
+        end do
+        close(3)
+      
+        ! Determine possible locations for additional precipitates
+        ! ===============================
+        num_boundary_locations = 0
 
-      end do
-      end do
-      end do
+        !$omp parallel do collapse(3) &
+        !$omp& private(i, j, k, phi_above_threshold) & 
+        !$omp& shared(phi, boundary) &
+        !$omp& reduction(+:num_boundary_locations)
+      
+        do k = 1, Nz
+          do j = 1, Ny
+            do i = 1, Nx  
+        
+              phi_above_threshold = 0 
+        
+              do ii = 1, var ! loop through all precipitates 
+                if (phi(ii,i,j,k) > threshold) phi_above_threshold = phi_above_threshold + 1 
+              end do
+        
+              boundary(i,j,k) = phi_above_threshold ! if more than one phi is nonzero, that signifies a boundary
+              if (boundary(i,j,k) == 2) num_boundary_locations = num_boundary_locations + 1
+        
+            end do
+          end do
+        end do
+      
+        !$omp end parallel do
+        ! ===============================
 
-      close(3)
+        if (num_boundary_locs > 0) then
+          allocate(boundary_locations(num_boundary_locs, 3))
+          loc_count = 0
+        
+          ! Second pass to store boundary locations
+          do k = 1, Nz
+            do j = 1, Ny
+              do i = 1, Nx
+                if (boundary(i,j,k) == 2) then  ! TODO here is where it is decided that it is a two line or three line boundary
+                  loc_count = loc_count + 1
+                  boundary_locations(loc_count, :) = (/ i, j, k /)
+                end if
+              end do
+            end do
+          end do
+        else
+          print *, "No boundary locations found."
+          stop
+        end if 
+    
+      ! - Currently this section of the polycrystal bonus section
+      !   finds a random boundary voxel and gives it a precipitate sphere with ppt_rad
+      ! - In the future, it may be good to make it possible to introduce
+      !   multiple additional precipitates, and this will require checking to make sure none overlap
+      ! ===============================
+        !do while ()
+
+        ! Choose additional precipitates
+        if (myid == 0) then
+          ll = int(ran_2(iseed)*num_boundary_locations) + 1 ! integer for the ll_th boundary voxel (1, num_boundary_locations)
+          ix = boundary_locations(ll, 1)
+          jy = boundary_locations(ll, 2)
+          kz = boundary_locations(ll, 3)
+        end if      
+
+        ! Ensure additional precipitates do not overlap (?)
+        ! TODO: implement overlap checking as in initialize_circle (?)
+
+        ! Assign additional precipitates
+        rad_ppt = (ppt_rad(1)**2 + ppt_rad(2)**2 + ppt_rad(3)**2)*1.0
+        do k  = ist(3), ien(3)
+          do j  = ist(2), ien(2)
+            do i  = ist(1), ien(1)
+
+              radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
+              if(radius.le.rad_ppt) then
+                phi(3,i,j,k) = 1.0
+                phi(2,i,j,k) = 0.0
+                phi(1,i,j,k) = 0.0
+                con(i,j,k) = con_0_ppt
+              end if
+
+            end do
+          end do
+        end do
+
+        !end do
+      ! ===============================
+    
+        deallocate(boundary)
 
       end if
 
@@ -509,6 +627,7 @@
 
       f_int = 0.d0
       DO  ivar=1,var
+      print *, "step, ivar, f_int: ", step, ivar, f_int
 
 ! ===============================
       !$omp parallel do private(i, j, k) &
@@ -623,10 +742,18 @@
         con_ijk = con(i,j,k)
 
         phi_mat = num_ijk / den_ijk
-        phi_ppt = 1.0 -phi_mat 
+        phi_ppt = 1.0 - phi_mat 
+
+        ! num ijk and den ik are 0 and 0 here, so phi_mat = 0/0 = NaN
+        print *, "num_ijk, den_ijk: ", num_ijk, den_ijk
+
+        ! phi mat and phi ppt are NaN at this point
+        print *, phi_mat, phi_ppt, am, con_ijk, con_0_mat
 
         fch_mat = phi_mat*am*(con_ijk-con_0_mat)**2
         fch_ppt = phi_ppt*ap*(con_ijk-con_0_ppt)**2
+
+        print *, "f_ch, fch_mat, fch_ppt", f_ch, fch_mat, fch_ppt
 
         f_ch = f_ch + fch_mat + fch_ppt 
 
@@ -793,18 +920,19 @@
       call inv_trans(dft_dummy, dummy, ist, ien, fst, fen)
 
 ! ===============================
-      !$omp parallel do private(i, j, k) &
-      !$omp& shared(dummy, mob_c, D_mean)
-      do k = ist(3), ien(3)
-      do j = ist(2), ien(2)
-      do i = ist(1), ien(1)
-
-      dummy(i,j,k) = dummy(i,j,k)*(mob_c(i,j,k)-D_mean)
-
-      end do
-      end do
-      end do
-      !$omp end parallel do
+!      !$omp parallel do private(i, j, k) &
+!      !$omp& shared(dummy, mob_c, D_mean)
+!      do k = ist(3), ien(3)
+!      do j = ist(2), ien(2)
+!      do i = ist(1), ien(1)
+!
+!      !dummy(i,j,k) = dummy(i,j,k)*(mob_c(i,j,k)-D_mean)
+!      ! TODO
+!
+!      end do
+!      end do
+!      end do
+!      !$omp end parallel do
 ! ===============================
 
       call f_trans(dummy, dft_dummy, Nx, Ny, Nz, ist, ien, fst, fen)
@@ -826,7 +954,8 @@
         term22 = 1.0 + D_mean*t_step*grad_coeff_c*k_4
         term33 = D_mean*k_sq*t_step*dft_df_dc(i,j,k)
 
-        dft_con(i,j,k) = (dft_con(i,j,k) + term11 + term33) / term22
+        !dft_con(i,j,k) = (dft_con(i,j,k) + term11 + term33) / term22
+! TODO
 
       end do
       end do
@@ -850,7 +979,7 @@
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
 ! ===============================
-      !$omp parallel do private(i, j, j, k_sq, kf_sum, term11, term22) &
+      !$omp parallel do private(i, j, k, k_sq, kf_sum, term11, term22) &
       !$omp& shared(kf_sq, kf, mob_phi, t_step, dft_dummy2, grad_coeff_phi, dft_dummy)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
@@ -863,7 +992,8 @@
 
         term11 = mob_phi*t_step*dft_dummy2(i,j,k)
         term22 = 1.0 - mob_phi*grad_coeff_phi*t_step*k_sq
-        dft_dummy(i,j,k) = ( dft_dummy(i,j,k) - term11 ) / term22
+        !dft_dummy(i,j,k) = ( dft_dummy(i,j,k) - term11 ) / term22
+! TODO
 
 !       Explicit
 
@@ -883,7 +1013,8 @@
 
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
                     dummy(ist(1),ist(2),ist(3)), ist, ien, fst, fen)
-      phi(ivar,:,:,:) = dummy(:,:,:)
+      !phi(ivar,:,:,:) = dummy(:,:,:)
+! TODO
 
       END DO
 
@@ -929,9 +1060,11 @@
          end do
          if(phi_sq.lt.phi_min) phi_min=phi_sq
          if(phi_sum.gt.1.0) then
-         do ivar=1,var
-            phi(ivar,i,j,k) = phi(ivar,i,j,k)/phi_sum
-         end do
+            print *, "phi sum gt 1: ", phi_sum
+         !do ivar=1,var
+            !phi(ivar,i,j,k) = phi(ivar,i,j,k)/phi_sum
+! TODO
+         !end do
          if(con(i,j,k).lt.1.e-7) con(i,j,k)=1.e-7
          if(con(i,j,k).gt.1.0) con(i,j,k)=1.0
          end if

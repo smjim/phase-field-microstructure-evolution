@@ -18,4 +18,4 @@ module load PrgEnv-intel
 module load python/3.11.4 
 
 # Specify input directory 
-srun python generate_vtk.py -i ../output/parametric_study/polycrystal/d_gb_test 
+srun python generate_vtk.py -i ../output/parametric_study/polycrystal/ic_test/

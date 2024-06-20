@@ -3,7 +3,7 @@
 #SBATCH --job-name=phase_field_microstructure_sim
 #SBATCH --output=slurm_output/sim_output.o%j 
 #SBATCH --error=slurm_output/sim_error.o%j 
-#SBATCH --ntasks=4
+#SBATCH --ntasks=1
 #SBATCH --account=ccpcmornl
 #SBATCH --qos=high
 
