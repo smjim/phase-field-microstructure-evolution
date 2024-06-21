@@ -1057,8 +1057,12 @@
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
 
-        num_ijk = phi(1,i,j,k)**4 + phi(2,i,j,k)**4
-        den_ijk = phi(1,i,j,k)**4 + phi(2,i,j,k)**4 + phi(3,i,j,k)**4
+        num_ijk = 0.0
+        den_ijk = 0.0
+        do ivar = 1, var
+          if (ivar.lt.var) num_ijk = num_ijk + phi(ivar,i,j,k)**4
+          den_ijk = den_ijk + phi(ivar,i,j,k)**4
+        end do
         con_ijk = con(i,j,k)
 
         phi_mat = num_ijk / den_ijk
@@ -1140,15 +1144,20 @@
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
 
+       den_ijk = 0.0
        con_ijk = con(i,j,k)
-       den_ijk = phi(1,i,j,k)**4 + phi(2,i,j,k)**4 + phi(3,i,j,k)**4
+
+       do ivar = 1, var
+         den_ijk = den_ijk + phi(ivar,i,j,k)**4
+       end do
+
        fch_mat = am*(con_ijk-con_0_mat)**2
        fch_ppt = ap*(con_ijk-con_0_ppt)**2
-       term_2 = 4.0*phi(3,i,j,k)**3*(phi(1,i,j,k)**4 + phi(2,i,j,k)**4)
+       term_2 = 4.0*phi(var,i,j,k)**3*(den_ijk - phi(var,i,j,k)**4)
 
        do ivar = 1, var
 
-       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(3,i,j,k)**4
+       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4 
        if(ivar.le.mat_var) term4(ivar,i,j,k) = term_1*(fch_mat - fch_ppt)/den_ijk**2
        if(ivar.gt.mat_var) term4(ivar,i,j,k) = term_2*(fch_ppt - fch_mat)/den_ijk**2
 
