@@ -24,9 +24,8 @@ module purge
 module load PrgEnv-intel
 module load fftw/3.3.10-intel-oneapi-mpi-intel
 
-srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/tmp/var_diff.x {input_file_path} {output_dir} > {mrun_path}
+srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/src/var_diff.x {input_file_path} {output_dir} > {mrun_path}
 """
-#srun $SRUNOPTS /scratch/jroger87/phase-field-microstructure-evolution/src/var_diff.x {input_file_path} {output_dir} > {mrun_path}
 
 paraview_slurm_template = """#!/bin/bash
 #SBATCH --nodes=1
@@ -241,7 +240,7 @@ def analyze_phase_sim_output(sim_dirname):
     duration = calculate_duration(sim_dirname)
 
     # Calculate precipitate coverage of boundaries
-    phase_fraction = calculate_final_phase_fraction(sim_dirname)
+    phase_fraction = None #calculate_final_phase_fraction(sim_dirname)
 
     # ------------------------------------
 

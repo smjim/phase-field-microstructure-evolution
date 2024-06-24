@@ -2,7 +2,8 @@
 # timken MEUMAPPS-SS project - martensite
 
 FC=mpif90
-FFLAGS  = -O2 -free -80 -g
+FFLAGS  = -O2 -free -80 # Original
+#FFLAGS  = -O0 -free -80 -g # Modified for debugging
 LINPLIB = $(HOME)/liblinpack.a
 FFTW =  -I /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/include -L /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/lib -lfftw3 -lfftw3_mpi
 P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccpcmornl/for_james/P3DFFT-2.7.9/lib -lp3dfft
@@ -10,32 +11,37 @@ P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccp
 all: var_diff.x paraview.x
 
 OBJECTS = \
-ran_2.o f_trans.o  inv_trans.o  k_space.o \
+  ran_2.o f_trans.o inv_trans.o k_space.o #initialize_conditions.o
 
-var_diff.x : var_diff.o $(OBJECTS) 
+#MODULES = initialize_conditions.o
+
+var_diff.x: var_diff.o $(OBJECTS)
 	$(FC) -o $@ $(FFLAGS) var_diff.o $(OBJECTS) $(LINPLIB) $(P3DFFT) $(FFTW)
 
-k_space.o : k_space.f 
-	$(FC) $(FFLAGS) -c k_space.f  $(FFTW) $(P3DFFT) $(LINPLIB)
+k_space.o: k_space.f90
+	$(FC) $(FFLAGS) -c k_space.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
 
-f_trans.o : f_trans.f 
-	$(FC) $(FFLAGS) -c f_trans.f $(FFTW) $(P3DFFT) $(LINPLIB)
+f_trans.o: f_trans.f90
+	$(FC) $(FFLAGS) -c f_trans.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
 
-inv_trans.o : inv_trans.f 
-	$(FC) $(FFLAGS) -c inv_trans.f $(FFTW) $(P3DFFT) $(LINPLIB)
+inv_trans.o: inv_trans.f90
+	$(FC) $(FFLAGS) -c inv_trans.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
 
-var_diff.o : var_diff.f 
-	$(FC) $(FFLAGS) -c var_diff.f $(FFTW) $(P3DFFT) $(LINPLIB)
+var_diff.o: var_diff.f90 $(MODULES)
+	$(FC) $(FFLAGS) -c var_diff.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
 
-ran_2.o : ran_2.f 
-	$(FC) $(FFLAGS) -c ran_2.f $(FFTW) $(P3DFFT) $(LINPLIB)
+ran_2.o: ran_2.f90
+	$(FC) $(FFLAGS) -c ran_2.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
+
+#initialize_conditions.o: initialize_conditions.f90
+#	$(FC) $(FFLAGS) -c initialize_conditions.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
 
 # Paraview visualization and analysis of phase data
-paraview.x : paraview.o
+paraview.x: paraview.o
 	$(FC) -o $@ $(FFLAGS) paraview.o
 
-paraview.o : paraview.f
-	$(FC) $(FFLAGS) -c paraview.f
+paraview.o: paraview.f90
+	$(FC) $(FFLAGS) -c paraview.f90
 
 clean:
-	rm *.o var_diff.x paraview.x
+	rm -f *.o *.mod var_diff.x paraview.x

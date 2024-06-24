@@ -1,5 +1,5 @@
 baseline_config:
-  N_step: 5000
+  N_step: 50000
   ifreq: 1000
   num_ppt: 50
   Nx: 96
@@ -7,16 +7,19 @@ baseline_config:
   Nz: 96
   t_step: 1.e-4
   dims: [4, 4]
-  #start: 'polycryst' #plane, circle, polycryst
-  start: 'circle'
-  var: 3
+  start: 'polycryst' #plane, circle, polycryst
+  #start: 'circle'
+  var: 54
+  #var: 3
   grad_coeff_phi: 1.0
   grad_coeff_c: 1.0
   d_bulk: 1.0
   d_gb: 10.0
   mob_phi: 5.0
-  sigma_1: 0.6919
-  sigma_2: 1.02
+  sigma_1: 6.0
+  sigma_2: 3.0 
+  #sigma_1: 0.6919
+  #sigma_2: 1.02
   am: 0.5
   ap: 2.0
   con_0_mat: 0.3
