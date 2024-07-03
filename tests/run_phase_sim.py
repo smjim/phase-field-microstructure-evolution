@@ -113,18 +113,17 @@ def generate_input_file(output_dir, params):
     input_file_path = os.path.join(output_dir, 'input.txt')
 
     with open(input_file_path, 'w') as file:
-        file.write(f"1       / nrun\n")
-        file.write(f"4 4 4 {params['N_step']} {params['ifreq']}      / ppt_rad(3), N_step, ifreq\n")
+        file.write(f"1 {params['ppt_int']}       / nrun, ppt_int \n")
+        file.write(f"2 2 2 {params['N_step']} {params['ifreq']}      / ppt_rad(3), N_step, ifreq\n")
         file.write(f"48 70 48 -1        / i_ppt, j_ppt, k_ppt, iseed\n")
-        file.write(f"40 {params['num_ppt']}  / grn_rad, num_ppt\n")
-        file.write(f"{params['Nx']} {params['Ny']} {params['Nz']} {params['var']} 0.01 0.01 0.01 {params['t_step']}  / Nx, Ny, Nz, var, dx, dy, dz, t_step\n")
-        file.write(f"{params['grad_coeff_phi']} {params['grad_coeff_c']} {params['d_bulk']} {params['d_gb']} {params['mob_phi']}   / grad_coeff_phi, grad_coeff_c, d_bulk, d_gb, mob_phi\n")
-        file.write(f"6.0  3.0  / sigma_1, sigma_2\n") 
+        file.write(f"40 {params['num_ppt']} {params['c_mat']} {params['c_ppt']} / grn_rad, num_ppt, c_mat, c_ppt \n")
+        file.write(f"{params['Nx']} {params['Ny']} {params['Nz']} {params['var']} 0.001 0.001 0.001 {params['t_step']}  / Nx, Ny, Nz, var, dx, dy, dz, t_step\n")
+        file.write(f"{params['grad_coeff_phi']} {params['grad_coeff_c']} {params['D_S']} {params['D_L']} {params['d_gb']} {params['mob_phi']}   / grad_coeff_phi, grad_coeff_c, D_S, D_L, d_gb, mob_phi\n")
+        file.write(f"{params['sigma_1']}  {params['sigma_2']}  / sigma_1, sigma_2\n")
         file.write(f"{params['am']} {params['ap']} {params['con_0_mat']} {params['con_0_ppt']} {params['gb_force']}     / am, ap, con_0_mat, con_0_ppt, gb_force\n")
         file.write(f"2       / ndim\n")
         file.write(f"{params['dims'][0]} {params['dims'][1]}     / dims(2)\n")
         file.write(f"'{params['start']}'         / start\n")
-        file.write(f"{params['sigma_1']}  {params['sigma_2']}  / sigma_1, sigma_2\n")
     
     return input_file_path
     
@@ -157,9 +156,6 @@ def submit_slurm_job(config, output_dir, input_file_path, time_str="1:00:00"):
     
     # Submit the SLURM job using sbatch
     result = subprocess.run(["sbatch", script_filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    
-    print("Result stdout:", result.stdout)
-    print("Result stderr:", result.stderr)
     
     if result.returncode != 0:
         print(f"Error submitting SLURM job: {result.stderr}")

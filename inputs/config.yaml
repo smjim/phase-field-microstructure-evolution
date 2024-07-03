@@ -1,29 +1,34 @@
 baseline_config:
   N_step: 50000
   ifreq: 1000
-  num_ppt: 50
+  ppt_int: 500
+  num_ppt: 500
   Nx: 96
   Ny: 96
   Nz: 96
   t_step: 1.e-4
-  dims: [4, 4]
+  dims: [8, 8]
   start: 'polycryst' #plane, circle, polycryst
-  #start: 'circle'
-  var: 54
-  #var: 3
+  var: 55
+  c_mat: 0.5
+  c_ppt: 0.5
+  D_S: 1.0
+  D_L: 1.0
   grad_coeff_phi: 1.0
   grad_coeff_c: 1.0
   d_bulk: 1.0
-  d_gb: 10.0
-  mob_phi: 5.0
-  sigma_1: 6.0
-  sigma_2: 3.0 
+  d_gb: 1.0
+  #d_gb: 10.0
+  mob_phi: 1.0
+  #mob_phi: 5.0
+  sigma_1: 1.5
+  sigma_2: 1.5
   #sigma_1: 0.6919
   #sigma_2: 1.02
   am: 0.5
-  ap: 2.0
-  con_0_mat: 0.3
-  con_0_ppt: 0.7
+  ap: 5.0
+  con_0_mat: 0.1
+  con_0_ppt: 1.0
   gb_force: 0.0
 
 strong_test:
@@ -112,6 +117,7 @@ c_coeff_test:
   - grad_coeff_c: 2.0
   - grad_coeff_c: 2.5
 
+# wetting proportional to d_gb/ d_bulk
 d_gb_test:
   - d_gb: 5.0
     mob_phi: 2.5
@@ -124,6 +130,7 @@ d_gb_test:
   - d_gb: 100.0
     mob_phi: 50.0
 
+# wetting proportional to sigma_1/ sigma_2
 sigma1_test:
   - sigma_1: 2.0
   - sigma_1: 3.0
@@ -156,3 +163,4 @@ ic_test:
     var: 54
     sigma_1: 6.0
     sigma_2: 3.0
+
