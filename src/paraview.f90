@@ -17,7 +17,7 @@
       real *8, dimension(:,:,:), allocatable :: con
       real *8, dimension(:), allocatable ::  con_gl
       real *8, dimension(:), allocatable ::  phi_sq_gl
-      real *8, dimension(:), allocatable ::  phi_3_gl, grad_phi_3_gl
+      real *8, dimension(:), allocatable ::  phi_var_gl, grad_phi_var_gl
       real *8, dimension(:), allocatable :: boundary_gl 
       character(len=256), dimension(:), allocatable :: precipitate_gl 
       ! --
@@ -26,13 +26,12 @@
       integer boundary_voxels, precipitate_boundary_voxels
       integer :: my_start_step, my_end_step
 !      integer :: total_boundary_voxels, total_precipitate_boundary_voxels
-      integer :: tag
       ! --
       ! Reading and calculating from input file
       real *8 term, phi_sq, phi_sum, phi_tot, phi_max, phi_temp
       character(len=256) :: input_dir, output_dir, step_dir
       character(len=256) :: infile, outfile_phi_sq, outfile_con, outfile_boundary
-      character(len=256) :: outfile_var_num, outfile_phi_3, outfile_grad_phi_3
+      character(len=256) :: outfile_var_num, outfile_phi_var, outfile_grad_phi_var
       character(len=256) :: command
       character(len=64), dimension(:), allocatable :: step_strings
       character(len=64) :: step_line, threshold_str
@@ -151,8 +150,8 @@
             Nxy = Nx*Ny
 
             allocate (phi_sq_gl(1:Nxyz))
-            allocate (phi_3_gl(1:Nxyz))
-            allocate (grad_phi_3_gl(1:Nxyz))
+            allocate (phi_var_gl(1:Nxyz))
+            allocate (grad_phi_var_gl(1:Nxyz))
             allocate (con_gl(1:Nxyz))
             allocate (num_var_gl(1:Nxyz))
             allocate (var_count(var))
@@ -187,7 +186,7 @@
               ! ===============================
               !$omp parallel do collapse(3) &
               !$omp& private(i, j, j, ll, phi_sq, phi_max, var_max, phi_above_threshold) & 
-              !$omp& shared(con_gl, con, phi_3_gl, phi, boundary_gl) &
+              !$omp& shared(con_gl, con, phi_var_gl, phi, boundary_gl) &
               !$omp& reduction(+:boundary_voxels, +:precipitate_boundary_voxels)
   
               do k = ist(3), ien(3)
@@ -203,7 +202,7 @@
                 phi_above_threshold = 0 
    
                 do ii = 1, var ! loop through all precipitates 
-                  if (ii == var) phi_3_gl(ll) = phi(3,i,j,k) ! var is the "precipitate phase"?
+                  if (ii == var) phi_var_gl(ll) = phi(var,i,j,k) ! var is the "precipitate phase"?
   
                   phi_sq = phi_sq + phi(ii,i,j,k)*phi(ii,i,j,k)
                   if (phi(ii,i,j,k) > phi_max) var_max = ii
@@ -249,7 +248,6 @@
               deallocate (con)
   
               !write(*,'(A, I4, 3(A), 2(I8), F6.2)') "myid file_num prec, bound, frac ", myid, " ", file_num_str, " ", precipitate_boundary_voxels, boundary_voxels, real(precipitate_boundary_voxels, kind=8)/ real(boundary_voxels, kind=8) 
-!"
             end do
 
             ! -----------
@@ -259,15 +257,15 @@
             outfile_phi_sq = trim(output_dir) // '/phi_sq_' // trim(adjustl(step_string)) // '.vtk'
             outfile_con = trim(output_dir) // '/con_' // trim(adjustl(step_string)) // '.vtk'
             outfile_var_num = trim(output_dir) // '/var_num_' // trim(adjustl(step_string)) // '.vtk'
-            outfile_phi_3 = trim(output_dir) // '/phi_3_' // trim(adjustl(step_string)) // '.vtk'
-            outfile_grad_phi_3 = trim(output_dir) // '/grad_phi_3_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_phi_var = trim(output_dir) // '/phi_var_' // trim(adjustl(step_string)) // '.vtk'
+            outfile_grad_phi_var = trim(output_dir) // '/grad_phi_var_' // trim(adjustl(step_string)) // '.vtk'
             outfile_boundary = trim(output_dir) // '/boundary_' // trim(adjustl(step_string)) // '.vtk'
 
             open(21, file=trim(outfile_phi_sq), status='unknown')
             open(22, file=trim(outfile_con), status='unknown')
             open(23, file=trim(outfile_var_num), status='unknown')
-            open(24, file=trim(outfile_phi_3), status='unknown')
-            open(25, file=trim(outfile_grad_phi_3), status='unknown')
+            open(24, file=trim(outfile_phi_var), status='unknown')
+            open(25, file=trim(outfile_grad_phi_var), status='unknown')
             open(26, file=trim(outfile_boundary), status='unknown')
       
             ! Write header
@@ -285,14 +283,14 @@
             end do
 
             ! Calculate gradient of phi field
-            call calculate_phi_grad(Nx, Ny, Nz, phi_3_gl, grad_phi_3_gl)
+            call calculate_phi_grad(Nx, Ny, Nz, phi_var_gl, grad_phi_var_gl)
       
             ! Write outputs
             write(21,*) phi_sq_gl
             write(22,*) con_gl
             write(23,*) num_var_gl
-            write(24,*) phi_3_gl
-            write(25,*) grad_phi_3_gl
+            write(24,*) phi_var_gl
+            write(25,*) grad_phi_var_gl
             write(26,*) boundary_gl
       
             close(21)
@@ -313,66 +311,14 @@
             write(*, '(A, 2(I8), F6.2)') trim(step_string), precipitate_boundary_voxels, boundary_voxels, precipitate_fraction
 
             deallocate(phi_sq_gl)
-            deallocate(phi_3_gl)
-            deallocate(grad_phi_3_gl)
+            deallocate(phi_var_gl)
+            deallocate(grad_phi_var_gl)
             deallocate(con_gl)
             deallocate(num_var_gl)
             deallocate(var_count)
             deallocate(boundary_gl)
 
       end do
-
-!      ! Write precipitate boundary fraction datafile output summary
-!      call MPI_Barrier(MPI_COMM_WORLD, ierr)
-!      if (myid == 0) then
-!        ! Receive precipitate_gl lines from other threads
-!        call MPI_Recv(precipitate_gl, 256, MPI_CHARACTER, i, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-!
-!        ! Write precipitate_gl lines
-!        ! Write all lines (lines calculated by master thread and lines received from other threads)
-!        do step_i = 1, num_steps 
-!          write(*, '(2(A), I4.4)') "precipitate_gl: ", precipitate_gl, step_i
-!          write(96,'(A)') precipitate_gl(step_i)
-!        end do
-!
-!        !close(95)
-!        close(96)
-!
-!        deallocate(precipitate_gl)
-!      else
-!        ! Send precipitate_gl lines to master thread
-!        call MPI_Send(precipitate_gl, 256, MPI_CHARACTER, 0, tag, MPI_COMM_WORLD, ierr)
-!        deallocate(precipitate_gl)
-!      end if
-
-
-!      ! Synchronize all processes
-!      call MPI_Barrier(MPI_COMM_WORLD, ierr)
-!      
-!      if (myid == 0) then
-!        ! Master process
-!        print *, "hi 1"
-!        
-!        ! Write the master's own data
-!        write(96, '(A)') precipitate_gl
-!    
-!        ! Receive precipitate_gl lines from other processes
-!        do i = 1, nprocs - 1
-!          call MPI_Recv(precipitate_gl, 256, MPI_CHARACTER, i, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-!          write(96, '(A)') precipitate_gl
-!        end do
-!        print *, "hi 2"
-!    
-!        ! Close the file
-!        close(96)
-!    
-!      else
-!        ! Worker processes
-!        ! Send precipitate_gl lines to master process
-!        call MPI_Send(precipitate_gl, 256, MPI_CHARACTER, 0, tag, MPI_COMM_WORLD, ierr)
-!      end if
-
-      call MPI_Finalize(ierr)
      
       contains
 
@@ -382,7 +328,7 @@
 
             integer, intent(in) :: Nx, Ny, Nz
             real(8), intent(in) :: phi(:)
-            real(8), dimension(:,:,:), allocatable :: phi_3, grad_phi_3_mag
+            real(8), dimension(:,:,:), allocatable :: phi_var, grad_phi_var_mag
             real(8), dimension(:,:,:), allocatable :: grad_x, grad_y, grad_z
             real(8), intent(out) :: grad_phi_mag(:)
             integer :: i, j, k
@@ -391,11 +337,11 @@
             allocate(grad_y(Nx, Ny, Nz))
             allocate(grad_z(Nx, Ny, Nz))
 
-            allocate(phi_3(Nx, Ny, Nz))
-            allocate(grad_phi_3_mag(Nx, Ny, Nz))
+            allocate(phi_var(Nx, Ny, Nz))
+            allocate(grad_phi_var_mag(Nx, Ny, Nz))
 
             ! Reshape phi array
-            phi_3 = reshape(phi, [Nx, Ny, Nz])
+            phi_var = reshape(phi, [Nx, Ny, Nz])
 
             ! Initialize gradients to zero
             grad_x = 0.0
@@ -406,21 +352,21 @@
             do k = 2, Nz-1
             do j = 2, Ny-1
             do i = 2, Nx-1
-              grad_x(i,j,k) = (phi_3(i+1,j,k) - phi_3(i-1,j,k)) / 2.0
-              grad_y(i,j,k) = (phi_3(i,j+1,k) - phi_3(i,j-1,k)) / 2.0
-              grad_z(i,j,k) = (phi_3(i,j,k+1) - phi_3(i,j,k-1)) / 2.0 
+              grad_x(i,j,k) = (phi_var(i+1,j,k) - phi_var(i-1,j,k)) / 2.0
+              grad_y(i,j,k) = (phi_var(i,j+1,k) - phi_var(i,j-1,k)) / 2.0
+              grad_z(i,j,k) = (phi_var(i,j,k+1) - phi_var(i,j,k-1)) / 2.0 
 
               ! Calculate grad magnitude array
-              grad_phi_3_mag(i,j,k) = sqrt(grad_x(i,j,k)**2 + grad_y(i,j,k)**2 + grad_z(i,j,k)**2)
+              grad_phi_var_mag(i,j,k) = sqrt(grad_x(i,j,k)**2 + grad_y(i,j,k)**2 + grad_z(i,j,k)**2)
             end do
             end do
             end do
 
             ! Reshape grad magnitude array
-            grad_phi_mag = reshape(grad_phi_3_mag, [Nx*Ny*Nz])
+            grad_phi_mag = reshape(grad_phi_var_mag, [Nx*Ny*Nz])
             
-            deallocate(phi_3)
-            deallocate(grad_phi_3_mag)
+            deallocate(phi_var)
+            deallocate(grad_phi_var_mag)
 
             deallocate(grad_x)
             deallocate(grad_y)
