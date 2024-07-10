@@ -4,8 +4,9 @@
       use p3dfft
       use mpi
       
-!      use initialize_conditions
+      use initialize_conditions
       implicit none
+!      include 'mpif.h'
 
       integer Nx, Ny, Nz, ndim, dims(2), kount , N_step, step
       integer ist(3), ien(3), isize(3), fst(3), fen(3), fsize(3)
@@ -69,7 +70,9 @@
       double complex  k_sq, k_4, kf_sum
       complex(p3dfft_type) term11, term22 , term33, term44
 
-      real *8 :: loop_time(14), loop_duration(14), avg_loop_time(14)
+      ! Additional variables
+      integer :: bonus_start, wetting_param
+      logical :: bonus_present
 
       ! Input filename specification
       call get_command_argument(1, input_file_path, status=ierr)
@@ -80,11 +83,6 @@
       open(93,file=trim(output_dir)//'time_step.dat')
       write(93, '(A)') "# step number, iteration duration, &
                               run time elapsed" 
-
-      open(94,file=trim(output_dir)//'timing_data.dat')
-      write(94, '(A)') "# step number, loop 1 avg, loop 2 avg, loop 3 avg, loop 4 avg, loop 5 avg, loop 6 avg, loop 7 avg, &
-                                       loop 8 avg, loop 9 avg, loop 10 avg, loop 11 avg, loop 12 avg, loop 13 avg, loop 14 avg, &
-                                       loop duration, run time elapsed" 
 
       open(97,file=trim(output_dir)//'gamma_matrix.dat')
 
@@ -117,6 +115,12 @@
          read(2,*) dims(1), dims(2)
       end if
       read(2,*) start
+
+      ! Only start evolving simulation concentration after bonus 
+      ! precipitates assigned 
+      bonus_start = 50
+      wetting_param = 2 ! boundary type for introducing additional precipitates
+      bonus_present = (start.eq.'poly_bonus'.or.start.eq.'circ_bonus')
 
 !     Set up work structures for P3DFFT
 !     -- note use of TRANSPOSED arrays
@@ -212,240 +216,26 @@
 !     set initial order parameters
 
       IF(nrun.eq.1) THEN
-
-      ! Subroutine for initializing polycrystal with input file
-      if(start.eq.'polycryst') then
-        open(3,file='/scratch/jroger87/phase-field-microstructure-evolution/inputs/polycrystal_configs/mc_ivar_fin',status='old')
+        ! Keep concentration constant for first few time steps 
+        if (start.eq.'polycryst' .or. start.eq.'poly_bonus') then
+          call initialize_polycrystal(Nx, Ny, Nz, phi, ist, ien, var)
+        else if (start.eq.'plane') then
+          call initialize_plane(Nx, Ny, Nz, phi, ist, ien, var, i_ppt, j_ppt, k_ppt, kount, ppt_rad)
+! TODO fix MPI error with this initialization routine
+! TODO it seems to be related to including them in a separate file, but
+! in the Makefile what is wrong? seems like nothing
+!        else if (start.eq.'circle' .or. start.eq.'circ_bonus') then
+!          call initialize_circle(Nx, Ny, Nz, phi, ist, ien, var, kount, ppt_rad, grn_rad, num_ppt, ierr, myid, iseed)
+        end if
+      else  
+        open(5,file='data_rerun.'//file_num, status='old', &
+        form='unformatted')
   
-        do k = 1, Nz
-        do j = 1, Ny
-        do i = 1, Nx
+        read(5) ist, ien
+        read(5) phi, con
   
-          read(3,*) ii, jj, kk, ivar
-          if(ii.ge.ist(1).and.ii.le.ien(1).AND. &
-             jj.ge.ist(2).and.jj.le.ien(2).AND. &
-             kk.ge.ist(3).and.kk.le.ien(3)) then
-             phi(ivar,ii,jj,kk) = 1.d0
-             if(ivar.eq.var) con(ii,jj,kk) = con_0_ppt
-          end if
-
-        end do
-        end do
-        end do
-  
-        close(3)
-
+        close(5) 
       end if
-
-      if(start.eq.'plane') then
-
-      do kk = ist(3), ien(3)
-      do jj = ist(2), ien(2)
-      do ii = ist(1), ien(1)
-       
-         phi(1,ii,jj,kk) = 1.0
-
-      end do  
-      end do  
-      end do  
-
-      do kk = ist(3), ien(3)
-      do jj = ist(2), ien(2)
-      do ii = ist(1), ien(1)
-
-      if(jj.gt.j_ppt) then
-         phi(:,ii,jj,kk) = 0.0
-         phi(2,ii,jj,kk) = 1.d0
-      end if
-
-      end do  
-      end do  
-      end do  
-
-      
-      do kk = ist(3), ien(3)
-      do jj = ist(2), ien(2)
-      do ii = ist(1), ien(1)
-
-      j1 = Ny - j_ppt + 1 
-      if(jj.le.j1) then
-         phi(:,ii,jj,kk) = 0.0
-         phi(2,ii,jj,kk) = 1.d0
-      end if
-
-      end do  
-      end do  
-      end do  
-
-!     Introduce a precipitate phase at the center 
-!     and assign concentrations
-
-      do k = -ppt_rad(3), ppt_rad(3)
-      do j = -ppt_rad(2), ppt_rad(2)
-      do i = -ppt_rad(1), ppt_rad(1)
-
-!        j_ppt = Ny/2
-         term_1 = (float(i)/float(ppt_rad(1)))**2
-         term_2 = (float(j)/float(ppt_rad(2)))**2
-         term_3 = (float(k)/float(ppt_rad(3)))**2
-         sum_ijk = term_1 + term_2 + term_3
-
-         if(sum_ijk.le.1.0) then
-           kount = kount + 1
-           ii = i + i_ppt
-           jj = j + j_ppt
-           kk = k + k_ppt
-           if(ii.ge.ist(1).AND.ii.le.ien(1).AND. &
-           jj.ge.ist(2).AND.jj.le.ien(2).AND. &
-           kk.ge.ist(3).AND.kk.le.ien(3)) then
-           phi(3,ii,jj,kk) = 1.d0
-           phi(1,ii,jj,kk) = 0.d0
-           phi(2,ii,jj,kk) = 0.d0
-           con(ii,jj,kk) = con_0_ppt
-           end if
-         end if
-
-      end do
-      end do
-      end do
-
-      j_ppt = Ny - j_ppt +1
-
-      do k = -ppt_rad(3), ppt_rad(3)
-      do j = -ppt_rad(2), ppt_rad(2)
-      do i = -ppt_rad(1), ppt_rad(1)
-
-         term_1 = (float(i)/float(ppt_rad(1)))**2
-         term_2 = (float(j)/float(ppt_rad(2)))**2
-         term_3 = (float(k)/float(ppt_rad(3)))**2
-         sum_ijk = term_1 + term_2 + term_3
-
-         if(sum_ijk.le.1.0) then
-           kount = kount + 1
-           ii = i + i_ppt
-           jj = j + j_ppt
-           kk = k + k_ppt
-           if(ii.ge.ist(1).AND.ii.le.ien(1).AND. &
-           jj.ge.ist(2).AND.jj.le.ien(2).AND. &
-           kk.ge.ist(3).AND.kk.le.ien(3)) then
-           phi(3,ii,jj,kk) = 1.d0
-           phi(1,ii,jj,kk) = 0.d0
-           phi(2,ii,jj,kk) = 0.d0
-           con(ii,jj,kk) = con_0_ppt
-           end if
-         end if
-
-      end do
-      end do
-      end do
-
-      end if
-
-      if(start.eq.'circle') then
-
-         phi(1,:,:,:) = 1.0
-
-!     Introduce a circular grain  at the center 
-
-        do k = -grn_rad, grn_rad
-        do j = -grn_rad, grn_rad
-        do i = -grn_rad, grn_rad
-
-           term_1 = (float(i)/float(grn_rad))**2
-           term_2 = (float(j)/float(grn_rad))**2
-           term_3 = (float(k)/float(grn_rad))**2
-           sum_ijk = term_1 + term_2 + term_3
-
-           if(sum_ijk.le.1.0) then
-             kount = kount + 1
-             ii = i + Nx/2
-             jj = j + Ny/2
-             kk = k + Nz/2
-             if(ii.ge.ist(1).AND.ii.le.ien(1).AND. &
-             jj.ge.ist(2).AND.jj.le.ien(2).AND. &
-             kk.ge.ist(3).AND.kk.le.ien(3)) then
-               phi(2,ii,jj,kk) = 1.d0
-               phi(1,ii,jj,kk) = 0.d0
-               phi(3,ii,jj,kk) = 0.d0
-             end if
-           end if
-
-        end do
-        end do
-        end do
-
-!     Introduce multiple precipitates within the circular grain
-
-        nppt = 1
-        rad_ppt = (ppt_rad(1)**2 + ppt_rad(2)**2 + ppt_rad(3)**2)*1.0
-
-        do while(nppt.le.num_ppt)  
-
-13        if(myid.eq.0) then
-
-16         ix = ran_2(iseed)*Nx + 1.0
-           jy = ran_2(iseed)*Ny + 1.0
-           kz = ran_2(iseed)*Nz + 1.0
-
-          end if
-
-          call MPI_Bcast(ix, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-          call MPI_Bcast(jy, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-          call MPI_Bcast(kz, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-
-          phi_count = 0
-          do k  = ist(3), ien(3)
-          do j  = ist(2), ien(2)
-          do i  = ist(1), ien(1)
-
-            radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
-            if(radius.le.rad_ppt.AND.phi(var,i,j,k).gt.0.0) &
-            phi_count = phi_count +1
-
-          end do
-          end do
-          end do
-
-          call MPI_Allreduce(phi_count, phi_tot, 1, MPI_INTEGER, &
-          MPI_SUM, MPI_COMM_WORLD, ierr)
-
-          if(phi_tot.gt.0) go to 13
-
-          if(phi_tot.eq.0) then
-
-            do k  = ist(3), ien(3)
-            do j  = ist(2), ien(2)
-            do i  = ist(1), ien(1)
-
-                radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
-                if(radius.le.rad_ppt) then
-                  phi(3,i,j,k) = 1.0
-                  phi(2,i,j,k) = 0.0
-                  phi(1,i,j,k) = 0.0
-                  con(i,j,k) = con_0_ppt
-                end if
-
-            end do
-            end do
-            end do
-            nppt = nppt + 1
-          end if
-        end do 
-        if(myid.eq.0) write(*,*) 'nppt=', nppt
-
-      end if 
-
-      ELSE
-
-      open(5,file='data_rerun.'//file_num, status='old', &
-      form='unformatted')
-
-      read(5) ist, ien
-      read(5) phi, con
-
-      close(5) 
-
-      END IF
 
       if(myid.eq.0) write(*,*) "precipitates assigned"
 
@@ -460,13 +250,18 @@
       do step = 1, N_step
       time(1) = MPI_Wtime()
 
+!     If on the bonus_start timestep, and bonus==true, then assign
+!     concentration and additional precipitates
+      if (bonus_present.and.(step == bonus_start)) then 
+        call assign_additional_precipitates(Nx, Ny, Nz, phi, con, ist, ien, wetting_param, num_ppt, ppt_rad, myid, nprocs, var, ierr)
+!        call assign_concentration(Nx, Ny, Nz, phi, con, ist, ien, wetting_param, num_ppt, ppt_rad, myid, var, ierr, start)
+      end if
+
       c_min = 10.0
 
 !     Calculate the total system energy
 !     First gradient energy due to phi gradients
 
-      !loop_time(1) = MPI_Wtime()
-      loop_duration(1) = 0.d0
       DO ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -474,7 +269,6 @@
                   dft_dummy(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
-      loop_time(1) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k) &
@@ -492,8 +286,6 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(1) = MPI_Wtime() - loop_time(1)
-      loop_duration(1) = loop_duration(1) + loop_time(1)
 
       dft_dummy(:,:,:) = dft_grad_x(ivar,:,:,:)
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
@@ -513,10 +305,7 @@
       grad_z(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      loop_time(1) = loop_duration(1)
-      !loop_time(1) = MPI_Wtime() - loop_time(1)
 
-      loop_time(2) = MPI_Wtime()
       f_int = 0.d0
       DO  ivar=1,var
 
@@ -539,11 +328,9 @@
 ! ===============================
 
       END DO
-      loop_time(2) = MPI_Wtime() - loop_time(2)
 
 !     Next, gradient energy due to concentration gradients
 
-      loop_time(3) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k) &
@@ -561,9 +348,7 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(3) = MPI_Wtime() - loop_time(3)
 
-      loop_time(4) = MPI_Wtime()
       call inv_trans(dft_grad_x_c, grad_x_c, ist, ien, fst, fen)
       call inv_trans(dft_grad_y_c, grad_y_c, ist, ien, fst, fen)
       call inv_trans(dft_grad_z_c, grad_z_c, ist, ien, fst, fen)
@@ -585,14 +370,12 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(4) = MPI_Wtime() - loop_time(4)
 
 !     Total system chemical energy consisting of matrix grains and
 !     precipitate
 
 !     First matrix grains interfacial energy
 
-      loop_time(5) = MPI_Wtime()
       f_eta = 0.d0
 
 ! ===============================
@@ -627,9 +410,7 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(5) = MPI_Wtime() - loop_time(5)
 
-      loop_time(6) = MPI_Wtime()
       f_ch = 0.0
 
 ! ===============================
@@ -665,7 +446,6 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(6) = MPI_Wtime() - loop_time(6)
 
 !    Calculate the gradients of the total energy with respect to phi and
 !    c required for solving the evolution equations
@@ -673,7 +453,6 @@
 !    gradient wrt phi consists of four terms (Eqn 4 of paper by Clang
 !    and Moelans)
 
-      loop_time(7) = MPI_Wtime()
       term2 = 0.d0
       term1 = 0.0
 
@@ -710,12 +489,10 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(7) = MPI_Wtime() - loop_time(7)
 
 
 !     calculating term4 and term5
 
-      loop_time(8) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i,j,k,ivar,con_ijk,den_ijk,fch_mat,fch_ppt) &
@@ -725,38 +502,20 @@
       do j = ist(2), ien(2)
       do i = ist(1), ien(1)
 
-!       den_ijk = 0.0
-!       con_ijk = con(i,j,k)
-!
-!       do ivar = 1, var
-!         den_ijk = den_ijk + phi(ivar,i,j,k)**4
-!       end do
-!
-!       fch_mat = am*(con_ijk-con_0_mat)**2
-!       fch_ppt = ap*(con_ijk-con_0_ppt)**2
-!       term_2 = 4.0*phi(var,i,j,k)**3*(den_ijk - phi(var,i,j,k)**4)
-!
-!       do ivar = 1, var
-!
-!       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4 
-!       if(ivar.le.mat_var) term4(ivar,i,j,k) = term_1*(fch_mat - fch_ppt)/den_ijk**2
-!       if(ivar.gt.mat_var) term4(ivar,i,j,k) = term_2*(fch_ppt - fch_mat)/den_ijk**2
-!
-!       end do
-
-       con_ijk = con(i,j,k)
-       fch_mat = am*(con_ijk-con_0_mat)**2
-       fch_ppt = ap*(con_ijk-con_0_ppt)**2
        den_ijk = 0.0
+       con_ijk = con(i,j,k)
+
        do ivar = 1, var
-       den_ijk = den_ijk + phi(ivar,i,j,k)**4
+         den_ijk = den_ijk + phi(ivar,i,j,k)**4
        end do
 
+       fch_mat = am*(con_ijk-con_0_mat)**2
+       fch_ppt = ap*(con_ijk-con_0_ppt)**2
        term_2 = 4.0*phi(var,i,j,k)**3*(den_ijk - phi(var,i,j,k)**4)
 
        do ivar = 1, var
 
-       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4
+       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4 
        if(ivar.le.mat_var) term4(ivar,i,j,k) = term_1*(fch_mat - fch_ppt)/den_ijk**2
        if(ivar.gt.mat_var) term4(ivar,i,j,k) = term_2*(fch_ppt - fch_mat)/den_ijk**2
 
@@ -767,9 +526,7 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(8) = MPI_Wtime() - loop_time(8)
 
-      loop_time(9) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(4) &
       !$omp& private(i, j, k, ivar) &
@@ -789,9 +546,7 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(9) = MPI_Wtime() - loop_time(9)
 
-      loop_time(10) = MPI_Wtime()
       call f_trans(con, dft_con, Nx, Ny, Nz, ist, ien, fst, fen)
       call f_trans(df_dc, dft_df_dc, Nx, Ny, Nz, ist, ien, fst, fen)
 
@@ -828,14 +583,12 @@
       end do
       !$omp end parallel do
 ! ===============================
-      loop_time(10) = MPI_Wtime() - loop_time(10)
 
 !     D_mean = (D_bulk + D_gb) / 2.0
       D_mean = D_bulk
 
 !     Set up additional terms in Fourier space due to variable mobility
 
-      loop_time(11) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k, kf_sum, k_sq) &
@@ -855,9 +608,7 @@
 ! ===============================
 
       call inv_trans(dft_dummy, dummy, ist, ien, fst, fen)
-      loop_time(11) = MPI_Wtime() - loop_time(11)
 
-      loop_time(12) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k) &
@@ -875,11 +626,9 @@
 ! ===============================
 
       call f_trans(dummy, dft_dummy, Nx, Ny, Nz, ist, ien, fst, fen)
-      loop_time(12) = MPI_Wtime() - loop_time(12)
 
 !     Solve C-H Equation in Fourier Space
 
-      loop_time(13) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private (i, j, k, kf_sum, k_4, k_sq, term11, term22, term33) &
@@ -903,13 +652,14 @@
       end do
       !$omp end parallel do
 ! ===============================
+
+! If running with bonus precipitates and step < bonus_start, dont update
+! concentrations with C-H equation
+!      if (.not.(bonus_present.and.(step < bonus_start))) &
       call inv_trans(dft_con, con, ist, ien, fst, fen)
-      loop_time(13) = MPI_Wtime() - loop_time(13)
 
 !    Solve time-dependent G-L equation
 
-      !loop_time(14) = MPI_Wtime()
-      loop_duration(14) = 0.d0
       do ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -921,7 +671,6 @@
                   dft_dummy2(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
-      loop_time(14) = MPI_Wtime()
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k, k_sq, kf_sum, term11, term22) &
@@ -949,8 +698,6 @@
       end do
       end do
       !$omp end parallel do
-      loop_time(14) = MPI_Wtime() - loop_time(14)
-      loop_duration(14) = loop_duration(14) + loop_time(14)
 ! ===============================
 
 !     perfrom inverse transformation to get the new phi values
@@ -962,8 +709,6 @@
       phi(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      loop_time(14) = loop_duration(14)
-      !loop_time(14) = MPI_Wtime() - loop_time(14)
 
 ! get the run time for each step and the cumulative time
 
@@ -992,6 +737,7 @@
       c_max = 0.0
       c_min = 1.0
 
+! This loop needs to be sequential in order to find minimum and maximum properly(?)
 ! ===============================
       do k = ist(3), ien(3) 
       do j = ist(2), ien(2) 
@@ -1053,23 +799,188 @@
 
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-      ! Print average loop durations across processes 
-      call MPI_Allreduce(loop_time, avg_loop_time, 14, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-      avg_loop_time = avg_loop_time / real(nprocs)
-      if (myid.eq.0) &
-        write(94, '(I8, 16(A, F8.6))') step, &
-              ' ', avg_loop_time(1), ' ', avg_loop_time(2), ' ', avg_loop_time(3), ' ', avg_loop_time(4), ' ', avg_loop_time(5), ' ', avg_loop_time(6), ' ', avg_loop_time(7), &
-              ' ', avg_loop_time(8), ' ', avg_loop_time(9), ' ', avg_loop_time(10), ' ', avg_loop_time(11), ' ', avg_loop_time(12), ' ', avg_loop_time(13), ' ', avg_loop_time(14), &
-              ' ', time(1), ' ', run_time 
-
       END DO
 
 10    format(i6, 7e15.7)
 9     format(3i6, 4e15.7)
 
+
       call p3dfft_clean
 
       call MPI_Finalize(ierr)
+
+      contains
+
+      ! Assign nppt additional precipitates on specified boundary types for wetting analysis
+      subroutine assign_additional_precipitates(Nx, Ny, Nz, phi, con, ist, ien, wetting_param, num_ppt, ppt_rad, myid, nprocs, var, ierr)
+            implicit none
+    
+            integer, intent(in) :: Nx, Ny, Nz, ist(3), ien(3), myid, ierr, var, nprocs
+            integer, intent(in) :: wetting_param, num_ppt, ppt_rad(3)
+            real *8, intent(inout) :: phi(1:var,ist(1):ien(1),ist(2):ien(2),ist(3):ien(3)), con(ist(1):ien(1), ist(2):ien(2), ist(3):ien(3))
+    
+            integer :: i, j, k, ii, jj, kk, ll, nppt
+    
+            integer, allocatable :: boundary_locations(:,:), precipitate_locations(:,:)
+            integer, allocatable :: boundary(:,:,:), boundary_glob(:,:,:)
+            integer :: boundary_start_index
+            integer :: phi_above_threshold, loc_count
+            integer :: num_boundary_locations, num_boundary_locations_glob
+            integer :: ix2, jy2, kz2, rad_ppt
+            real *8 :: threshold, ran_2
+    
+            if(myid.eq.0) print *, "assigning additional precipitates"
+            
+            threshold = 0.2 
+            allocate(boundary(ist(1):ien(1),ist(2):ien(2),ist(3):ien(3)))
+    
+            ! Introduce multiple precipitates on boundaries 
+            !++++++++++++++++++++++++++
+            num_boundary_locations = 0
+
+            do k = ist(3), ien(3) 
+              do j = ist(2), ien(2)
+                do i = ist(1), ien(1)  
+            
+                  phi_above_threshold = 0 
+            
+                  do ii = 1, var ! loop through all precipitates 
+                    if (phi(ii,i,j,k) > threshold) phi_above_threshold = phi_above_threshold + 1 
+                  end do
+  
+                  boundary(i,j,k) = phi_above_threshold 
+                  ! if more than one phi is nonzero, that signifies a boundary
+                  if (boundary(i,j,k) == 2) num_boundary_locations = num_boundary_locations + 1
+                end do
+              end do
+            end do
+            ! ===============================
+            ! Sum num_boundary_conditions from each thread
+            call MPI_Allreduce(num_boundary_locations, num_boundary_locations_glob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+            write(*, '(A, I8, A, I8, A, I8)') "myid, num_bound, num_bound_glob", myid, " ", num_boundary_locations, " ", num_boundary_locations_glob 
+    
+            ! Make boundary_location list on each process
+            if (num_boundary_locations > 0) then
+              
+              allocate(boundary_locations(num_boundary_locations, 3))
+              loc_count = 0
+               
+              ! Second pass to store boundary locations
+              do k  = ist(3), ien(3)
+                do j  = ist(2), ien(2)
+                  do i  = ist(1), ien(1)
+                    if (boundary(i,j,k) == wetting_param) then
+                      loc_count = loc_count + 1
+                      boundary_locations(loc_count, :) = (/ i, j, k /)
+                    end if
+                  end do
+                end do
+              end do
+            else
+              print *, "No boundary locations found for process ", myid
+            end if 
+
+            ! ===============================
+            ! MPI Scan (ask 1 - n-1 how many boundary locations they have to find relative location in array)
+            call MPI_Scan(num_boundary_locations, boundary_start_index, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, ierr)
+            boundary_start_index = boundary_start_index - num_boundary_locations ! The scan was inclusive
+            write(*, '(A, 4I8)') "myid, num_boundary_locations, boundary_locations_glob, boundary_start_index: ", myid, num_boundary_locations, num_boundary_locations_glob, boundary_start_index 
+
+            nppt = 1
+            rad_ppt = (ppt_rad(1)**2 + ppt_rad(2)**2 + ppt_rad(3)**2)*1.0
+    
+            allocate(precipitate_locations(num_ppt, 3))
+    
+            do while (nppt.le.num_ppt)
+              ! Choose additional precipitates
+              ! The llth boundary voxel generated by a common random number generator
+              if (myid.eq.0) &
+                ll = int(ran_2(iseed)*num_boundary_locations_glob) + 1 
+              write(*, '(A, 2I8)') "nppt, num_ppt ", nppt, num_ppt
+
+              call MPI_Bcast(ll, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+
+              ! If the random number falls to this process
+              if (boundary_start_index < ll .and. ll < boundary_start_index + num_boundary_locations) then
+                print *, "myid, ll: ", myid, ll
+                ix = boundary_locations(ll, 1)
+                jy = boundary_locations(ll, 2)
+                kz = boundary_locations(ll, 3)
+              end if
+
+              call MPI_Bcast(ix, 1, MPI_INTEGER, myid, MPI_COMM_WORLD, ierr)
+              call MPI_Bcast(jy, 1, MPI_INTEGER, myid, MPI_COMM_WORLD, ierr)
+              call MPI_Bcast(kz, 1, MPI_INTEGER, myid, MPI_COMM_WORLD, ierr)
+
+              print *, myid, " here 0, ll=", ll
+              call MPI_Barrier(MPI_COMM_WORLD, ierr)
+              print *, "================="
+
+              ! Ensure additional precipitates do not overlap
+              phi_count = 0
+              if (nppt>1) then
+                print *, "nppt>1?"
+                do ll = 1, nppt-1
+                  ix2 = precipitate_locations(ll, 1)
+                  jy2 = precipitate_locations(ll, 2)
+                  kz2 = precipitate_locations(ll, 3)
+      
+                  radius = (ix - ix2)**2 + (jy - jy2)**2 + (kz - kz2)**2
+                  !if(radius.le.rad_ppt.AND.phi(var,i,j,k).gt.0.0) &
+      
+                  if(radius.le.rad_ppt) &
+                  phi_count = phi_count +1
+                end do
+              end if
+
+              print *, myid, " here 1"
+              call MPI_Barrier(MPI_COMM_WORLD, ierr)
+              print *, "================="
+    
+              call MPI_Allreduce(phi_count, phi_tot, 1, MPI_INTEGER, &
+                     MPI_SUM, MPI_COMM_WORLD, ierr)
+              print *, "myid, phi_count: ", myid, phi_count
+    
+              if (phi_tot .gt. 0) cycle
+              if (phi_tot .eq. 0) then  
+                ! Assign additional precipitates
+                rad_ppt = (ppt_rad(1)**2 + ppt_rad(2)**2 + ppt_rad(3)**2)*1.0
+                do k  = ist(3), ien(3)
+                  do j  = ist(2), ien(2)
+                    do i  = ist(1), ien(1)
+        
+                      radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
+                      if(radius.le.rad_ppt) then
+                        phi(3,i,j,k) = 1.0
+                        phi(2,i,j,k) = 0.0
+                        phi(1,i,j,k) = 0.0
+                        con(i,j,k) = con_0_ppt
+    
+                        ! Add precipitate location to list for overlap checking
+                        ll = nppt
+                        precipitate_locations(ll, :) = (/ i, j, k /)
+                      end if
+        
+                    end do
+                  end do
+                end do
+                nppt = nppt + 1
+              end if
+    
+            end do
+            ! ===============================
+            print *, myid, " here 2"
+            call MPI_Barrier(MPI_COMM_WORLD, ierr)
+            print *, "================="
+        
+            deallocate(boundary)
+            deallocate(boundary_locations)
+            deallocate(precipitate_locations)
+  
+            if (myid.eq.0) write(*,*) 'nppt=', nppt
+            !++++++++++++++++++++++++++
+    
+      end subroutine assign_additional_precipitates
 
       end
 

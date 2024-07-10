@@ -1,0 +1,11 @@
+1 501      / nrun, ppt_int
+2 2 2 50000 500      / ppt_rad(3), N_step, ifreq
+48 70 48 -1        / i_ppt, j_ppt, k_ppt, iseed
+40 500 0.5 0.5   / grn_rad, num_ppt c_mat c_ppt
+96 96 96 55 0.001 0.001 0.001 1.e-4  / Nx, Ny, Nz, var, dx, dy, dz, t_step
+1.0 1.0 1.e-0 1.e0 5.0 1.0   / grad_coeff_phi, grad_ceoff_c, D_S, D_L, d_gb, mob_phi
+1.5  1.5  / sigma_1, sigma_2
+0.5 5.0 0.1 1.0 0.0     / am, ap, con_0_mat, con_0_ppt, gb_force
+2       / ndim
+8 8     / dims(2)
+'polycryst'         / start

@@ -69,7 +69,7 @@
       double complex  k_sq, k_4, kf_sum
       complex(p3dfft_type) term11, term22 , term33, term44
 
-      real *8 :: loop_time(14), avg_loop_time(14)
+      real *8 :: loop_time(14), loop_duration(14), avg_loop_time(14)
 
       ! Input filename specification
       call get_command_argument(1, input_file_path, status=ierr)
@@ -465,7 +465,8 @@
 !     Calculate the total system energy
 !     First gradient energy due to phi gradients
 
-      loop_time(1) = MPI_Wtime()
+      !loop_time(1) = MPI_Wtime()
+      loop_duration(1) = 0.d0
       DO ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -473,6 +474,7 @@
                   dft_dummy(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+      loop_time(1) = MPI_Wtime()
 ! ===============================
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
@@ -486,6 +488,8 @@
       end do
       end do
 ! ===============================
+      loop_time(1) = MPI_Wtime() - loop_time(1)
+      loop_duration(1) = loop_duration(1) + loop_time(1)
 
       dft_dummy(:,:,:) = dft_grad_x(ivar,:,:,:)
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
@@ -505,7 +509,8 @@
       grad_z(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      loop_time(1) = MPI_Wtime() - loop_time(1)
+      !loop_time(1) = MPI_Wtime() - loop_time(1)
+      loop_time(1) = loop_duration(1)
 
       loop_time(2) = MPI_Wtime()
       f_int = 0.d0
@@ -846,7 +851,8 @@
 
 !    Solve time-dependent G-L equation
 
-      loop_time(14) = MPI_Wtime()
+      !loop_time(14) = MPI_Wtime()
+      loop_duration(14) = 0.d0
       do ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -858,6 +864,7 @@
                   dft_dummy2(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+      loop_time(14) = MPI_Wtime()
 ! ===============================
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
@@ -882,6 +889,8 @@
       end do
       end do
 ! ===============================
+      loop_time(14) = MPI_Wtime() - loop_time(14)
+      loop_duration(14) = loop_duration(14) + loop_time(14)
 
 !     perfrom inverse transformation to get the new phi values
 !     This new phi which will be used in the Cahn-Hilliard equation
@@ -892,7 +901,8 @@
       phi(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      loop_time(14) = MPI_Wtime() - loop_time(14)
+      !loop_time(14) = MPI_Wtime() - loop_time(14)
+      loop_time(14) = loop_duration(14)
 
 ! get the run time for each step and the cumulative time
 
