@@ -8,7 +8,7 @@ LINPLIB = $(HOME)/liblinpack.a
 FFTW =  -I /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/include -L /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/lib -lfftw3 -lfftw3_mpi
 P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccpcmornl/for_james/P3DFFT-2.7.9/lib -lp3dfft
 
-all: clean var_diff.x paraview.x
+all: clean var_diff.x paraview.x analyze_plane.x
 
 OBJECTS = \
   ran_2.o f_trans.o inv_trans.o k_space.o #initialize_conditions.o
@@ -37,11 +37,18 @@ ran_2.o: ran_2.f90
 #	$(FC) $(FFLAGS) -c initialize_conditions.f90 ran_2.o $(FFTW) $(P3DFFT) $(LINPLIB)
 
 # Paraview visualization and analysis of phase data
-paraview.x: paraview.o
-	$(FC) -o $@ $(FFLAGS) paraview.o
+paraview.x: paraview.o ran_2.o 
+	$(FC) -o $@ $(FFLAGS) paraview.o ran_2.o 
 
 paraview.o: paraview.f90
 	$(FC) $(FFLAGS) -c paraview.f90
 
+# Analysis of plane wetting
+analyze_plane.x: analyze_plane.o
+	$(FC) -o $@ $(FFLAGS) analyze_plane.o
+
+analyze_plane.o: analyze_plane.f90
+	$(FC) $(FFLAGS) -c analyze_plane.f90
+
 clean:
-	rm -f *.o *.mod var_diff.x paraview.x
+	rm -f *.o *.mod var_diff.x paraview.x analyze_plane.x

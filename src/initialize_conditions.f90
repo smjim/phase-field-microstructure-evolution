@@ -10,8 +10,8 @@ module initialize_conditions
 
 contains
 
-  ! Subroutine for 
-  subroutine initialize_polycrystal(Nx, Ny, Nz, phi, con, ist, ien, var, bonus_present, con_0_ppt)
+  ! Subroutine for initializing polycrystal from file
+  subroutine initialize_polycrystal(Nx, Ny, Nz, phi, con, ist, ien, var)
     integer, intent(in) :: Nx, Ny, Nz, ist(3), ien(3), var
     logical, intent(in) :: bonus_present
     real *8, intent(in) :: con_0_ppt
@@ -29,7 +29,6 @@ contains
          jj.ge.ist(2).and.jj.le.ien(2).AND. &
          kk.ge.ist(3).and.kk.le.ien(3)) then 
          phi(ivar,ii,jj,kk) = 1.d0 
-         if(ivar.eq.var .and. .not. bonus_present) con(ii,jj,kk) = con_0_ppt
       end if
     end do
     end do
@@ -409,10 +408,6 @@ contains
 !  !++++++++++++++++++++++++++
 !
 !  end subroutine assign_additional_precipitates
-
-  subroutine assign_concentration()
-    print *, "hi"
-  end subroutine assign_concentration
 
 end module initialize_conditions
 

@@ -559,6 +559,10 @@
 !     First gradient energy due to phi gradients
 
       loop_time(1) = MPI_Wtime()
+! ===============================
+      !$omp parallel do collapse(4) &
+      !$omp& private(i, j, k, ivar, dummy, dft_dummy) &
+      !$omp& shared(kf, grad_x, grad_y, grad_z, dft_grad_x, dft_grad_y, dft_grad_z)
       DO ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -566,10 +570,6 @@
                   dft_dummy(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
-! ===============================
-      !$omp parallel do collapse(3) &
-      !$omp& private(i, j, k) &
-      !$omp& shared(ivar, dft_dummy, kf, dft_grad_x, dft_grad_y, dft_grad_z)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -581,8 +581,6 @@
       end do
       end do
       end do
-      !$omp end parallel do
-! ===============================
 
       dft_dummy(:,:,:) = dft_grad_x(ivar,:,:,:)
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
@@ -602,6 +600,8 @@
       grad_z(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
+      !$omp end parallel do
+! ===============================
       loop_time(1) = MPI_Wtime() - loop_time(1)
 
       loop_time(2) = MPI_Wtime()
@@ -997,6 +997,10 @@
 !    Solve time-dependent G-L equation
 
       loop_time(14) = MPI_Wtime()
+! ===============================
+      !$omp parallel do collapse(3) &
+      !$omp& private(i, j, k, k_sq, kf_sum, term11, term22, dummy, dummy2, dft_dummy, dft_dummy2) &
+      !$omp& shared(phi, df_dphi, kf_sq, kf, mob_phi, t_step, grad_coeff_phi)
       do ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -1008,10 +1012,6 @@
                   dft_dummy2(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
-! ===============================
-      !$omp parallel do collapse(3) &
-      !$omp& private(i, j, k, k_sq, kf_sum, term11, term22) &
-      !$omp& shared(kf_sq, kf, mob_phi, t_step, dft_dummy2, grad_coeff_phi, dft_dummy)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -1035,8 +1035,6 @@
       end do
       end do
       end do
-      !$omp end parallel do
-! ===============================
 
 !     perfrom inverse transformation to get the new phi values
 !     This new phi which will be used in the Cahn-Hilliard equation
@@ -1047,6 +1045,8 @@
       phi(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
+      !$omp end parallel do
+! ===============================
       loop_time(14) = MPI_Wtime() - loop_time(14)
 
 ! get the run time for each step and the cumulative time

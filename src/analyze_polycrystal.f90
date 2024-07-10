@@ -39,7 +39,7 @@
       integer :: num_steps, unit, ios, step_i, file_num
       ! --
       ! Calculation of mean thickness estimate
-      integer :: intersections, intersections_glob, iseed, phi_var_sum, phi_var_sum_glob, N
+      integer :: intersections, intersections_glob, iseed, phi_var_sum, phi_var_sum_glob, N, total_length
       real *8 :: N_L, ran_2, thickness_est, phi_var_vol_frac
 
       call MPI_Init(ierr)
@@ -134,17 +134,18 @@
       ! Loop through step directories assigned to this process
       do step_i = my_start_step, my_end_step 
             step_string = trim(step_strings(step_i))
+            print *, trim(step_string)
             step_dir = trim(input_dir) // '/step_' & 
                   //trim(adjustl(step_string)) // '/'
             infile = trim(step_dir) // 'data_extract_mult.in'
+
+            !print *, "Analyzing directory: ", step_dir
 
             !open(10, file=trim(step_dir)//'var_dist', status='unknown')
             open(11, file=trim(infile), status='old')
             read(11,*) Nx, Ny, Nz, nprocs, var
             read(11,*) dims(1), dims(2)
             close(11)
-
-            print *, "Analyzing directory: ", step_dir
       
             Nxyz = Nx*Ny*Nz
             Nxy = Nx*Ny
@@ -260,7 +261,6 @@
             iseed = -1
             N = 16 
 
-            ! N random rays intersecting 2nd phase 
             file_num = myid * dims(1) ! TODO requires nproc==dims(2)
             do j = 1, dims(1)
               file_num = file_num + 1
@@ -277,18 +277,39 @@
             end do
 
             intersections = 0
+
+            ! N random rays in x,z 
             do ii = 1, N
               ix = ran_2(iseed)*Nx + 1.0
               kz = ran_2(iseed)*(ien(3) - ist(3)) + ist(3) 
-              !print *, "myid, ii, ix, kz: ", myid, ii, ix, kz
-
               ! Calculate intersections of rays
               do jy = 1, Ny
                 !write(*,'(A,6I8,2F8.4)') "myid, ii, ix, jy, kz, intersections, phi_var, threshold: ", myid, ii, ix, jy, kz, intersections, phi(var,ix,jy,kz), threshold
                 if (phi(var,ix,jy,kz) >= threshold) &
                   intersections = intersections + 1
               end do
-
+            end do
+            ! N random rays in y,z 
+            do ii = 1, N
+              jy = ran_2(iseed)*Nx + 1.0
+              kz = ran_2(iseed)*(ien(3) - ist(3)) + ist(3) 
+              ! Calculate intersections of rays
+              do ix = 1, Nx
+                !write(*,'(A,6I8,2F8.4)') "myid, ii, ix, jy, kz, intersections, phi_var, threshold: ", myid, ii, ix, jy, kz, intersections, phi(var,ix,jy,kz), threshold
+                if (phi(var,ix,jy,kz) >= threshold) &
+                  intersections = intersections + 1
+              end do
+            end do
+            ! N random rays in x,y 
+            do ii = 1, N*nprocs
+              ix = ran_2(iseed)*Nx + 1.0
+              jy = ran_2(iseed)*Ny + 1.0
+              ! Calculate intersections of rays
+              do kz = ist(3), ien(3) 
+                !write(*,'(A,6I8,2F8.4)') "myid, ii, ix, jy, kz, intersections, phi_var, threshold: ", myid, ii, ix, jy, kz, intersections, phi(var,ix,jy,kz), threshold
+                if (phi(var,ix,jy,kz) >= threshold) &
+                  intersections = intersections + 1
+              end do
             end do
 
             deallocate (phi)
@@ -301,7 +322,8 @@
             ! Average intersections per unit length
             call MPI_Allreduce(intersections, intersections_glob, 1, MPI_INTEGER, &
                 MPI_SUM, MPI_COMM_WORLD, ierr)
-            N_L = real(intersections_glob, kind=8)/ real(N * Ny * nprocs, kind=8)
+            total_length = nprocs * ( (N * (Nx + Ny)) + (nprocs * N * (ien(3) - ist(3))) )
+            N_L = real(intersections_glob, kind=8)/ real(total_length, kind=8)
 
             ! Calculate average mean thickness prediction
             thickness_est = 4*phi_var_vol_frac/ 2*N_L
