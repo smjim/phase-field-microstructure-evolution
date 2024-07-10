@@ -1,4 +1,3 @@
-!     Parallelized with OpenMP 5-28-2024
 !     subroutine for calculating the k vectors in Fourier space
 
       subroutine k_space(Nx, Ny, Nz, fst, fen, kf, kf_sq, kf_4)
@@ -17,7 +16,6 @@
       unit2 = unit/float(Ny)
       unit3 = unit/float(Nz)
 
-      !$omp parallel do private(i, j, k, ii, jj, kk, lambda1, lambda2, lambda3)
       do i = fst(3), fen(3)
       ii = i-1
 
@@ -61,7 +59,6 @@
       end do
       end do
       end do
-      !$omp end parallel do
 
       return 
       end

@@ -1,0 +1,12 @@
+1    / nrun, ppt_int
+10 10 10 500000 1000      / ppt_rad(3), N_step, ifreq
+128 180 128 -1        / i_ppt, j_ppt, k_ppt, iseed
+40 500 0.5 0.5 / grn_rad, num_ppt
+256 256 256 3 0.001 0.001 0.001 1.e-4  / Nx, Ny, Nz, var, dx, dy, dz, t_step
+1.0 1.0 1.e-0 1.e0 10.0 5.0   / grad_coeff_phi, grad_ceoff_c, D_S, D_L, d_gb, mob_phi
+6.0 1.5  / sigma_1, sigma_2
+0.5 5.0 0.1 1.0 0.0     / am, ap, con_0_mat, con_0_ppt, gb_force
+2       / ndim
+16 16     / dims(2)
+'plane'         / start
+
