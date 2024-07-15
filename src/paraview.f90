@@ -253,68 +253,68 @@
             end do
             if (myid == 0) print *, "=========== FINISHED GL ANALYSIS ==========="
 
-            ! ====================
-            ! Statistical estimate of mean thickness of second phase
-            ! ====================
-            ! Calculate volume fraction of second phase
-            iseed = -1
-            N = 16 
-
-            ! N random rays intersecting 2nd phase 
-            file_num = myid * dims(1) ! TODO requires nproc==dims(2)
-            do j = 1, dims(1)
-              file_num = file_num + 1
-              write(file_num_str, '(i4.4)') file_num
-              open(12,file=trim(step_dir)//'data_save.'//file_num_str, & 
-                  status='old', form='unformatted')
-              read(12) ist, ien
-              if (j == 1) allocate( phi(var, Nx, Ny, ist(3):ien(3)) )
-              if (j == 1) allocate( con(Nx, Ny, ist(3):ien(3)) )
-              read(12) phi(1:var,1:Nx,ist(2):ien(2),ist(3):ien(3)),  &
-                       con(1:Nx,ist(2):ien(2),ist(3):ien(3))
-              close(12)
-
-            end do
-
-            intersections = 0
-            do ii = 1, N
-              ix = ran_2(iseed)*Nx + 1.0
-              kz = ran_2(iseed)*(ien(3) - ist(3)) + ist(3) 
-              !print *, "myid, ii, ix, kz: ", myid, ii, ix, kz
-
-              ! Calculate intersections of rays
-              do jy = 1, Ny
-                !write(*,'(A,6I8,2F8.4)') "myid, ii, ix, jy, kz, intersections, phi_var, threshold: ", myid, ii, ix, jy, kz, intersections, phi(var,ix,jy,kz), threshold
-                if (phi(var,ix,jy,kz) >= threshold) &
-                  intersections = intersections + 1
-              end do
-
-            end do
-
-            deallocate (phi)
-            deallocate (con)
-
-            call MPI_Allreduce(phi_var_sum, phi_var_sum_glob, 1, MPI_INTEGER, &
-                MPI_SUM, MPI_COMM_WORLD, ierr)
-            phi_var_vol_frac = real(phi_var_sum_glob, kind=8)/ real(Nx * Ny * Nz, kind=8)
-
-            ! Average intersections per unit length
-            call MPI_Allreduce(intersections, intersections_glob, 1, MPI_INTEGER, &
-                MPI_SUM, MPI_COMM_WORLD, ierr)
-            N_L = real(intersections_glob, kind=8)/ real(N * Ny * nprocs, kind=8)
-
-            ! Calculate average mean thickness prediction
-            thickness_est = 4*phi_var_vol_frac/ 2*N_L
-            !write(93,'(2A,I8,3F8.4,I8)') "step, myid, thickness_est, phi_var_vol_frac, N_L, intersections: ", trim(step_string), myid, thickness_est, phi_var_vol_frac, N_L, intersections
-
-            ! ====================
+!            ! ====================
+!            ! Statistical estimate of mean thickness of second phase
+!            ! ====================
+!            ! Calculate volume fraction of second phase
+!            iseed = -1
+!            N = 16 
+!
+!            ! N random rays intersecting 2nd phase 
+!            file_num = myid * dims(1) ! TODO requires nproc==dims(2)
+!            do j = 1, dims(1)
+!              file_num = file_num + 1
+!              write(file_num_str, '(i4.4)') file_num
+!              open(12,file=trim(step_dir)//'data_save.'//file_num_str, & 
+!                  status='old', form='unformatted')
+!              read(12) ist, ien
+!              if (j == 1) allocate( phi(var, Nx, Ny, ist(3):ien(3)) )
+!              if (j == 1) allocate( con(Nx, Ny, ist(3):ien(3)) )
+!              read(12) phi(1:var,1:Nx,ist(2):ien(2),ist(3):ien(3)),  &
+!                       con(1:Nx,ist(2):ien(2),ist(3):ien(3))
+!              close(12)
+!
+!            end do
+!
+!            intersections = 0
+!            do ii = 1, N
+!              ix = ran_2(iseed)*Nx + 1.0
+!              kz = ran_2(iseed)*(ien(3) - ist(3)) + ist(3) 
+!              !print *, "myid, ii, ix, kz: ", myid, ii, ix, kz
+!
+!              ! Calculate intersections of rays
+!              do jy = 1, Ny
+!                !write(*,'(A,6I8,2F8.4)') "myid, ii, ix, jy, kz, intersections, phi_var, threshold: ", myid, ii, ix, jy, kz, intersections, phi(var,ix,jy,kz), threshold
+!                if (phi(var,ix,jy,kz) >= threshold) &
+!                  intersections = intersections + 1
+!              end do
+!
+!            end do
+!
+!            deallocate (phi)
+!            deallocate (con)
+!
+!            call MPI_Allreduce(phi_var_sum, phi_var_sum_glob, 1, MPI_INTEGER, &
+!                MPI_SUM, MPI_COMM_WORLD, ierr)
+!            phi_var_vol_frac = real(phi_var_sum_glob, kind=8)/ real(Nx * Ny * Nz, kind=8)
+!
+!            ! Average intersections per unit length
+!            call MPI_Allreduce(intersections, intersections_glob, 1, MPI_INTEGER, &
+!                MPI_SUM, MPI_COMM_WORLD, ierr)
+!            N_L = real(intersections_glob, kind=8)/ real(N * Ny * nprocs, kind=8)
+!
+!            ! Calculate average mean thickness prediction
+!            thickness_est = 4*phi_var_vol_frac/ 2*N_L
+!            !write(93,'(2A,I8,3F8.4,I8)') "step, myid, thickness_est, phi_var_vol_frac, N_L, intersections: ", trim(step_string), myid, thickness_est, phi_var_vol_frac, N_L, intersections
+!
+!            ! ====================
 
             ! -----------
             ! Write outputs
             ! -----------
 
-            ! Write mean thickness estimate
-            write(93,*) trim(step_string), thickness_est
+!            ! Write mean thickness estimate
+!            write(93,*) trim(step_string), thickness_est
             !write(93,'(I8, F8.4)') step, mean_thickness_est
  
             ! Write VTK files from each MPI Process

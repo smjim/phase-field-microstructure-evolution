@@ -44,11 +44,18 @@ paraview.o: paraview.f90
 	$(FC) $(FFLAGS) -c paraview.f90
 
 # Analysis of plane wetting
-analyze_plane.x: analyze_plane.o
-	$(FC) -o $@ $(FFLAGS) analyze_plane.o
+analyze_plane.x: analyze_plane.o ran_2.o
+	$(FC) -o $@ $(FFLAGS) analyze_plane.o ran_2.o
 
 analyze_plane.o: analyze_plane.f90
 	$(FC) $(FFLAGS) -c analyze_plane.f90
+
+# Analysis of polycryst wetting
+analyze_polycryst.x: analyze_polycryst.o ran_2.o
+	$(FC) -o $@ $(FFLAGS) analyze_polycryst.o ran_2.o
+
+analyze_polycryst.o: analyze_polycryst.f90
+	$(FC) $(FFLAGS) -c analyze_polycryst.f90
 
 clean:
 	rm -f *.o *.mod var_diff.x paraview.x analyze_plane.x

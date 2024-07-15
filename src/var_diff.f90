@@ -1117,7 +1117,7 @@
       call MPI_Reduce(phi_3, phi_3_max, 1, MPI_DOUBLE_PRECISION, &
               MPI_MAX, 0, MPI_COMM_WORLD, ierr)
 
-      if(mod(step,ifreq).eq.0) then
+      if(step.eq.1 .or. mod(step,ifreq).eq.0) then
 
         write(dir_name,'(A, a5,i7.7)') trim(output_dir),'step_',step
         !write(dir_name,'(a5,i7.7)') 'step_',step
