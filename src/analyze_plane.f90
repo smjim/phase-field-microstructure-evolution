@@ -143,14 +143,22 @@
  
                do k = ist(3), ien(3)
                do i = 1, Nx
- 
-                 ! Determine precipitate boundary as 3 or more overlapping phases containing ppt
-                 do ivar = 1, var
-                   if (phi(ivar,i,j,k) > threshold) &
-                     phi_contained = phi_contained + 1
-                 end do
 
-                 if (phi(var,i,j,k) > threshold .and. phi_contained >= 3) then
+                  phi_sq = 0.d0
+                  do ivar = 1, var
+                    phi_sq = phi_sq + phi(ivar,i,j,k)*phi(ivar,i,j,k)
+                  end do
+ 
+!                 ! Determine precipitate boundary as 3 or more overlapping phases containing ppt
+!                 do ivar = 1, var
+!                   if (phi(ivar,i,j,k) > threshold) &
+!                     phi_contained = phi_contained + 1
+!                 end do
+
+                 !if (phi(var,i,j,k) > threshold .and. phi_contained >= 3) then
+
+                 ! Determine precipitate boundary as phi(var)>threshold and phi_sq<threshold(?)
+                 if (phi(var,i,j,k) > threshold .and. phi_sq < threshold) then
                    ii = ii + 1
                    boundary_locations(ii,p,:) = (/ i, j, k /)
                  end if
@@ -177,14 +185,22 @@
  
                do k = ist(3), ien(3)
                do i = 1, Nx
- 
-                 ! Determine precipitate boundary as 3 or more overlapping phases containing ppt
-                 do ivar = 1, var
-                   if (phi(ivar,i,j,k) > threshold) &
-                     phi_contained = phi_contained + 1
-                 end do
 
-                 if (phi(var,i,j,k) > threshold .and. phi_contained >= 3) then
+                  phi_sq = 0.d0
+                  do ivar = 1, var
+                    phi_sq = phi_sq + phi(ivar,i,j,k)*phi(ivar,i,j,k)
+                  end do
+ 
+!                 ! Determine precipitate boundary as 3 or more overlapping phases containing ppt
+!                 do ivar = 1, var
+!                   if (phi(ivar,i,j,k) > threshold) &
+!                     phi_contained = phi_contained + 1
+!                 end do
+
+                 !if (phi(var,i,j,k) > threshold .and. phi_contained >= 3) then
+
+                 ! Determine precipitate boundary as phi(var)>threshold and phi_sq<threshold(?)
+                 if (phi(var,i,j,k) > threshold .and. phi_sq < threshold) then
                    ii = ii + 1
                    boundary_locations(ii,p,:) = (/ i, j, k /)
                  end if

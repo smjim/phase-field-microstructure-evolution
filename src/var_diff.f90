@@ -21,13 +21,15 @@
       real *8 num_ijk, den_ijk, phi_1, phi_2, phi_3, con_ijk, den, phi_3_max
       real *8 f_int_tot, f_eta_tot, f_ch_tot, e_tot
       real *8 f_int, f_eta, f_ch, c_min, c_min_glob, sigma_1, sigma_2
-      real *8 D_gb, D_mean, phi_sum, fi, D_vol, D_S, D_L, glob_sum 
+      real *8 D_gb, D_mean, phi_sum, fi, D_vol, D_S, D_L, glob_sum
       real *8 rad_test, c_mat, c_ppt
       real *8 c_max, c_max_glob, phi_max, phi_max_glob
       real *8  ran_2, phi_min, phi_min_glob, phi_sq
       real *8  mob_min, mob_max, min_glob, max_glob, ave_mob, glob_mob
       character start*10, file_num*4, dir_name*256 
       character input_file_path*256, output_dir*256
+      
+      integer :: tmp, tmp_sum
 
       real *8, dimension(:,:), allocatable :: gamma
       real *8, dimension(:,:,:),  allocatable :: con
@@ -71,7 +73,7 @@
       double complex  k_sq, k_4, kf_sum, k_cube
       complex(p3dfft_type) term11, term22 , term33, term44
 
-      real *8 :: loop_time(14), loop_duration(14), avg_loop_time(14)
+      real *8 :: loop_time(14), avg_loop_time(14)
 
       ! Input filename specification
       call get_command_argument(1, input_file_path, status=ierr)
@@ -83,16 +85,16 @@
       write(93, '(A)') "# step number, iteration duration, &
                               run time elapsed" 
 
-      open(95,file=trim(output_dir)//'timing_data.dat')
-      write(95, '(A)') "# step number, loop 1 avg, loop 2 avg, loop 3 avg, loop 4 avg, loop 5 avg, loop 6 avg, loop 7 avg, &
+      open(94,file=trim(output_dir)//'timing_data.dat')
+      write(94, '(A)') "# step number, loop 1 avg, loop 2 avg, loop 3 avg, loop 4 avg, loop 5 avg, loop 6 avg, loop 7 avg, &
                                        loop 8 avg, loop 9 avg, loop 10 avg, loop 11 avg, loop 12 avg, loop 13 avg, loop 14 avg, &
-                                       loop duration, run time elapsed"
+                                       loop duration, run time elapsed" 
 
       open(97,file=trim(output_dir)//'gamma_matrix.dat')
 
       open(98,file=trim(output_dir)//'summary.dat')
       write(98, '(A)') "# step number, f_int_tot, f_ch_tot, &
-        f_eta_tot, e_tot, c_max_glob, c_min_glob, phi_min_glob, phi_3_max" 
+        f_eta_tot, e_tot, c_max_glob, c_min_glob, phi_min_glob" 
 
 
 !     MPI Initializations
@@ -120,8 +122,8 @@
       end if
       read(2,*) start
 
-!     Default value of free energy from thermocalc is J/mole
-!     Convert to J/m^3 using molar value of Ti-6Al-4V
+      ! Default value of free energy from thermocalc is J/mole
+      ! Convert to J/m^3 using molar value of Ti-6Al-4V
 
 !     Set up work structures for P3DFFT
 !     -- note use of TRANSPOSED arrays
@@ -130,12 +132,12 @@
 
 !     Get dimensions for the original array of real numbers, X-pencils
       call p3dfft_get_dims(ist, ien, isize, 1)
-      if(myid.eq.0) write(*,*) ist, ien 
+      if(myid.eq.0) write(*,*) ist, ien
 
 !     Get dimensions for the R2C-forward-transformed array of complex numbers
 !     Z-pencils
       call p3dfft_get_dims(fst, fen, fsize, 2)
-      if(myid.eq.0) write(*,*) fst, fen 
+      if(myid.eq.0) write(*,*) fst, fen
 
 !     Determine local array sizes and allocate arrays
       allocate (gamma(var,var))
@@ -186,7 +188,7 @@
       write(file_num,'(i4.4)') myid+1
 
       do ivar = 1, var
-        if(ivar.lt.var) then
+        if (ivar.lt.var) then
           D_Bulk(ivar) = D_S
         else
           D_Bulk(ivar) = D_L
@@ -209,10 +211,10 @@
            if(i.le.mat_var.and.j.le.mat_var) gamma(i,j) = sigma_1 
         end if
         if(j.eq.var) then
-           if(i.lt.var) gamma(i,j) = sigma_2
+          if(i.lt.var) gamma(i,j) = sigma_2
         end if
         if(i.eq.var) then
-           if(j.lt.var) gamma(i,j) = sigma_2
+          if(j.lt.var) gamma(i,j) = sigma_2
         end if
       end do 
       end do 
@@ -443,8 +445,8 @@
             end do
             nppt = nppt + 1
           end if
-          if(myid.eq.0) write(*,*) 'nppt=', nppt
         end do 
+        if(myid.eq.0) write(*,*) 'nppt=', nppt
 
       end if 
 
@@ -474,15 +476,16 @@
       do step = 1, N_step
       time(1) = MPI_Wtime()
 
-!     Introduce multiple precipitates within the polycrystal 
+!     Introduce multiple precipitates within the polycrystal
 
-      if(step.eq.ppt_int) then
+      if(start.eq."polycryst" .and. step.eq.ppt_int) then
 
         nppt = 1
         rad_ppt = (ppt_rad(1)**2 + ppt_rad(2)**2 + ppt_rad(3)**2)
 
         do while(nppt.le.num_ppt)
 
+          tmp = 0 ! size of ppt
 19        if(myid.eq.0) then
 
 16         ix = ran_2(iseed)*Nx + 1.0
@@ -518,7 +521,7 @@
           do i  = ist(1), ien(1)
 
             radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
-            if(radius.le.rad_ppt.AND.phi(var,i,j,k).gt.0.0) &
+            if(radius.le.2.2*rad_ppt.AND.phi(var,i,j,k).gt.0.0) & ! 2.2*radius of ppt ensures no "touching" of introduced precipitates
             phi_count = phi_count +1
 
           end do
@@ -539,6 +542,7 @@
                 radius = (i - ix)**2 + (j - jy)**2 + (k-kz)**2
                 if(radius.le.rad_ppt) then
                   phi(var,i,j,k) = 1.0
+                  tmp = tmp + 1
                   do ivar = 1, mat_var
                   phi(ivar,i,j,k) = 0.0
                   end do
@@ -547,7 +551,12 @@
             end do
             end do
             end do
+
+
           end if
+          call MPI_Allreduce(tmp, tmp_sum, 1, MPI_INTEGER, &
+            MPI_SUM, MPI_COMM_WORLD, ierr)
+          if (myid.eq.0) print *, "nppt, size: ", nppt, tmp_sum
           nppt = nppt + 1
           write(*,*) 'nppt=', nppt
         end do
@@ -559,10 +568,6 @@
 !     First gradient energy due to phi gradients
 
       loop_time(1) = MPI_Wtime()
-! ===============================
-      !$omp parallel do collapse(4) &
-      !$omp& private(i, j, k, ivar, dummy, dft_dummy) &
-      !$omp& shared(kf, grad_x, grad_y, grad_z, dft_grad_x, dft_grad_y, dft_grad_z)
       DO ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -570,6 +575,11 @@
                   dft_dummy(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+      !loop_time(1) = MPI_Wtime()
+! ===============================
+      !$omp parallel do collapse(3) &
+      !$omp& private(i, j, k) &
+      !$omp& shared(ivar, dft_dummy, kf, dft_grad_x, dft_grad_y, dft_grad_z)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
@@ -581,6 +591,9 @@
       end do
       end do
       end do
+      !$omp end parallel do
+! ===============================
+      !loop_time(1) = MPI_Wtime() - loop_time(1)
 
       dft_dummy(:,:,:) = dft_grad_x(ivar,:,:,:)
       call inv_trans(dft_dummy(fst(1),fst(2),fst(3)), &
@@ -600,8 +613,6 @@
       grad_z(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      !$omp end parallel do
-! ===============================
       loop_time(1) = MPI_Wtime() - loop_time(1)
 
       loop_time(2) = MPI_Wtime()
@@ -633,7 +644,6 @@
 
       loop_time(3) = MPI_Wtime()
       call f_trans(con, dft_con, Nx, Ny, Nz, ist, ien, fst, fen)
-
 ! ===============================
       !$omp parallel do collapse(3) &
       !$omp& private(i, j, k) &
@@ -703,7 +713,6 @@
 
         fi_j = phi(jvar,i,j,k)
         if(jvar.gt.ivar) then
-!        if(jvar.ne.ivar) then
 
           gb_en = gamma(ivar,jvar)
           f_eta = f_eta + gb_en*fi_i**2*fi_j**2
@@ -735,7 +744,7 @@
         num_ijk = 0.0
         den_ijk = 0.0
         do ivar = 1, var
-          if (ivar.lt.var) num_ijk = num_ijk + phi(ivar,i,j,k)**4 
+          if (ivar.lt.var) num_ijk = num_ijk + phi(ivar,i,j,k)**4
           den_ijk = den_ijk + phi(ivar,i,j,k)**4
         end do
         con_ijk = con(i,j,k)
@@ -784,7 +793,6 @@
       do jvar = 1, var
 
        if(jvar.ne.ivar) then
-!       if(jvar.gt.ivar) then
 
           fi_j = phi(jvar,i,j,k)
 
@@ -830,7 +838,7 @@
 
        do ivar = 1, var
 
-       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4 
+       term_1 = 4.0*phi(ivar,i,j,k)**3*phi(var,i,j,k)**4
        if(ivar.le.mat_var) term4(ivar,i,j,k) = term_1*(fch_mat - fch_ppt)/den_ijk**2
        if(ivar.gt.mat_var) term4(ivar,i,j,k) = term_2*(fch_ppt - fch_mat)/den_ijk**2
 
@@ -911,11 +919,11 @@
       !call MPI_Allreduce(ave_mob, glob_mob, 1, MPI_DOUBLE_PRECISION, &
       ! MPI_MAX, MPI_COMM_WORLD, ierr)
       call MPI_Allreduce(sum(mob_c), glob_mob, 1, MPI_DOUBLE_PRECISION, &
-        MPI_SUM, MPI_COMM_WORLD, ierr) 
+        MPI_SUM, MPI_COMM_WORLD, ierr)
 
       D_mean = D_L
 
-      !D_mean = glob_mob/float(Nx*Ny*Nz) 
+      !D_mean = glob_mob/float(Nx*Ny*Nz)
       !D_mean = D_L*4.0*D_gb
 
 !     Set up additional terms in Fourier space due to variable mobility
@@ -934,6 +942,7 @@
        k_cube = kf(1,i,j,k)*kf_sq(1,i,j,k) + kf(2,i,j,k)*kf_sq(2,i,j,k) &
         + kf(3,i,j,k)*kf_sq(3,i,j,k)
        dft_dummy(i,j,k) = kf_sum*dft_df_dc(i,j,k) - grad_coeff_c*dft_con(i,j,k)*k_cube
+
 
       end do
       end do
@@ -976,7 +985,6 @@
       do i = fst(1), fen(1)
 
         kf_sum = kf(1,i,j,k) + kf(2,i,j,k) + kf(3,i,j,k)
-        !kf_sum = sqrt(kf(1,i,j,k)**2 + kf(2,i,j,k)**2 + kf(3,i,j,k)**2)
         k_4  = kf_4(1,i,j,k) + kf_4(2,i,j,k) + kf_4(3,i,j,k)
         k_sq = kf_sq(1,i,j,k)+kf_sq(2,i,j,k)+kf_sq(3,i,j,k)
 
@@ -997,10 +1005,6 @@
 !    Solve time-dependent G-L equation
 
       loop_time(14) = MPI_Wtime()
-! ===============================
-      !$omp parallel do collapse(3) &
-      !$omp& private(i, j, k, k_sq, kf_sum, term11, term22, dummy, dummy2, dft_dummy, dft_dummy2) &
-      !$omp& shared(phi, df_dphi, kf_sq, kf, mob_phi, t_step, grad_coeff_phi)
       do ivar = 1, var
 
       dummy(:,:,:) = phi(ivar,:,:,:)
@@ -1012,13 +1016,17 @@
                   dft_dummy2(fst(1),fst(2),fst(3)),  &
                   Nx, Ny, Nz, ist, ien, fst, fen)
 
+      !loop_time(14) = MPI_Wtime()
+! ===============================
+      !$omp parallel do collapse(3) &
+      !$omp& private(i, j, k, k_sq, kf_sum, term11, term22) &
+      !$omp& shared(kf_sq, kf, mob_phi, t_step, dft_dummy2, grad_coeff_phi, dft_dummy)
       do k = fst(3), fen(3)
       do j = fst(2), fen(2)
       do i = fst(1), fen(1)
 
         k_sq = kf_sq(1,i,j,k)+kf_sq(2,i,j,k)+kf_sq(3,i,j,k)
         !kf_sum = kf(1,i,j,k) + kf(2,i,j,k) + kf(3,i,j,k)
-        !kf_sum = sqrt(kf(1,i,j,k)**2 + kf(2,i,j,k)**2 + kf(3,i,j,k)**2)
 
 !       Implicit
 
@@ -1035,6 +1043,9 @@
       end do
       end do
       end do
+      !$omp end parallel do
+      !loop_time(14) = MPI_Wtime() - loop_time(14)
+! ===============================
 
 !     perfrom inverse transformation to get the new phi values
 !     This new phi which will be used in the Cahn-Hilliard equation
@@ -1045,8 +1056,6 @@
       phi(ivar,:,:,:) = dummy(:,:,:)
 
       END DO
-      !$omp end parallel do
-! ===============================
       loop_time(14) = MPI_Wtime() - loop_time(14)
 
 ! get the run time for each step and the cumulative time
@@ -1147,17 +1156,15 @@
       call MPI_Allreduce(loop_time, avg_loop_time, 14, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
       avg_loop_time = avg_loop_time / real(nprocs)
       if (myid.eq.0) &
-        write(95, '(I8, 16(A, F8.6))') step, &
+        write(94, '(I8, 15(A, F8.6), A, F8.2)') step, &
               ' ', avg_loop_time(1), ' ', avg_loop_time(2), ' ', avg_loop_time(3), ' ', avg_loop_time(4), ' ', avg_loop_time(5), ' ', avg_loop_time(6), ' ', avg_loop_time(7), &
               ' ', avg_loop_time(8), ' ', avg_loop_time(9), ' ', avg_loop_time(10), ' ', avg_loop_time(11), ' ', avg_loop_time(12), ' ', avg_loop_time(13), ' ', avg_loop_time(14), &
-              ' ', time(1), ' ', run_time
-
+              ' ', time(1), ' ', run_time 
 
       END DO
 
 10    format(i6, 8e15.7)
 9     format(3i6, 4e15.7)
-
 
       call p3dfft_clean
 

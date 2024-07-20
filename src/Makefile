@@ -2,8 +2,8 @@
 # timken MEUMAPPS-SS project - martensite
 
 FC=mpif90
-FFLAGS  = -O2 -free -80 # Original
-#FFLAGS  = -O0 -free -80 -g # Modified for debugging
+#FFLAGS  = -O2 -free -80 # Original
+FFLAGS  = -O0 -free -80 -g # Modified for debugging
 LINPLIB = $(HOME)/liblinpack.a
 FFTW =  -I /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/include -L /nopt/nrel/apps/libraries/08-23/spack/opt/spack/linux-rhel8-icelake/intel-2021.10.0/fftw-3.3.10-aix7ofi2nlmjssdhkuaiwudzrdex2gkc/lib -lfftw3 -lfftw3_mpi
 P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccpcmornl/for_james/P3DFFT-2.7.9/lib -lp3dfft
@@ -11,7 +11,7 @@ P3DFFT  = -I /projects/ccpcmornl/for_james/P3DFFT-2.7.9/include -L /projects/ccp
 all: clean var_diff.x paraview.x analyze_plane.x
 
 OBJECTS = \
-  ran_2.o f_trans.o inv_trans.o k_space.o #initialize_conditions.o
+  ran_2.o f_trans.o inv_trans.o k_space.o
 
 #MODULES = initialize_conditions.o
 
@@ -32,10 +32,7 @@ var_diff.o: var_diff.f90 $(MODULES)
 
 ran_2.o: ran_2.f90
 	$(FC) $(FFLAGS) -c ran_2.f90 $(FFTW) $(P3DFFT) $(LINPLIB)
-
-#initialize_conditions.o: initialize_conditions.f90 ran_2.o
-#	$(FC) $(FFLAGS) -c initialize_conditions.f90 ran_2.o $(FFTW) $(P3DFFT) $(LINPLIB)
-
+#
 # Paraview visualization and analysis of phase data
 paraview.x: paraview.o ran_2.o 
 	$(FC) -o $@ $(FFLAGS) paraview.o ran_2.o 
@@ -56,6 +53,13 @@ analyze_polycryst.x: analyze_polycryst.o ran_2.o
 
 analyze_polycryst.o: analyze_polycryst.f90
 	$(FC) $(FFLAGS) -c analyze_polycryst.f90
+
+# Analysis of polycryst wetting with grain sizes histogramming
+hist-ppt-3d.x: hist-ppt-3d.o ran_2.o
+	$(FC) -o $@ $(FFLAGS) hist-ppt-3d.o ran_2.o
+
+hist-ppt-3d.o: hist-ppt-3d.f90
+	$(FC) $(FFLAGS) -c hist-ppt-3d.f90
 
 clean:
 	rm -f *.o *.mod var_diff.x paraview.x analyze_plane.x
